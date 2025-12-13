@@ -6,3 +6,125 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum SubjectType {
+  COMPULSORY
+  ELECTIVE
+}
+
+enum TestType {
+  MONTHLY
+  SESSION
+}
+
+model Class {
+  id         Int      @id @default(autoincrement())
+  externalId String   @unique @default(uuid())
+  name       String
+  isActive   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  students   Student[]
+  subjects   Subject[]
+  tests      Test[]
+}
+
+model Student {
+  id         Int      @id @default(autoincrement())
+  externalId String   @unique @default(uuid())
+  firstName  String
+  lastName   String
+  fatherName String
+  email      String?
+  contactNo  String?
+  rollNumber String
+  classId    Int
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt DateTime?
+
+  class           Class           @relation(fields: [classId], references: [id])
+  scores          StudentScore[]
+  studentSubjects StudentSubject[]
+
+  @@unique([classId, rollNumber])
+}
+
+model Subject {
+  id          Int         @id @default(autoincrement())
+  externalId  String      @unique @default(uuid())
+  name        String
+  subjectType SubjectType
+  maxMarks    Int
+  classId     Int
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  class           Class           @relation(fields: [classId], references: [id])
+  scores          StudentScore[]
+  studentSubjects StudentSubject[]
+}
+model StudentSubject {
+  id         Int      @id @default(autoincrement())
+  externalId String   @unique @default(uuid())
+  studentId  Int
+  subjectId  Int
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  student Student @relation(fields: [studentId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+
+  @@unique([studentId, subjectId])
+}
+model Test {
+  id         Int      @id @default(autoincrement())
+  externalId String   @unique @default(uuid())
+  name       String
+  testType   TestType
+  totalMarks Int
+  classId    Int
+  isActive   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  class  Class          @relation(fields: [classId], references: [id])
+  scores StudentScore[]
+}
+
+model StudentScore {
+  id            Int      @id @default(autoincrement())
+  externalId    String   @unique @default(uuid())
+  studentId     Int
+  subjectId     Int
+  testId        Int
+  obtainedMarks Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  student Student @relation(fields: [studentId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+  test    Test    @relation(fields: [testId], references: [id])
+
+  @@unique([studentId, subjectId, testId])
+}
+
+model GradeScale {
+  id            Int      @id @default(autoincrement())
+  externalId    String   @unique @default(uuid())
+  minPercentage Float
+  maxPercentage Float
+  grade         String
+  remarks       String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+}
+
