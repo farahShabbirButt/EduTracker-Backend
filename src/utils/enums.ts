@@ -1,9 +1,9 @@
 export enum SubjectType {
-    COMPULSORY = "COMPULSORY",
-    ELECTIVE = "ELECTIVE"
+  COMPULSORY = 'COMPULSORY',
+  ELECTIVE = 'ELECTIVE',
 }
 
 export enum TestType {
-    MONTHLY = "MONTHLY",
-    SESSION = "SESSION"
+  MONTHLY = 'MONTHLY',
+  SESSION = 'SESSION',
 }
