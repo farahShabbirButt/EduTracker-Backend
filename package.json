@@ -14,6 +14,9 @@
     "typeorm": "npx typeorm",
     "build:prod": "npx tsc -p ."
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "keywords": [
     "node",
     "typescript"

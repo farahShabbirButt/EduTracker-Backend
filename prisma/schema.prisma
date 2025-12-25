@@ -18,22 +18,23 @@ enum TestType {
 }
 
 model Class {
-  id         Int      @id @default(autoincrement())
-  externalId String   @unique @default(uuid())
+  id         Int     @id @default(autoincrement())
+  externalId String  @unique @default(uuid())
   name       String
-  isActive   Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive   Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  students   Student[]
-  subjects   Subject[]
-  tests      Test[]
+  students       Student[]
+  subjectClasses SubjectClass[]
+  tests          Test[]
 }
 
 model Student {
-  id         Int      @id @default(autoincrement())
-  externalId String   @unique @default(uuid())
+  id         Int     @id @default(autoincrement())
+  externalId String  @unique @default(uuid())
   firstName  String
   lastName   String
   fatherName String
@@ -41,12 +42,13 @@ model Student {
   contactNo  String?
   rollNumber String
   classId    Int
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isActive   Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  class           Class           @relation(fields: [classId], references: [id])
+  class           Class            @relation(fields: [classId], references: [id])
   scores          StudentScore[]
   studentSubjects StudentSubject[]
 
@@ -57,31 +59,50 @@ model Subject {
   id          Int         @id @default(autoincrement())
   externalId  String      @unique @default(uuid())
   name        String
+  isActive    Boolean     @default(true)
   subjectType SubjectType
   maxMarks    Int
-  classId     Int
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  deletedAt   DateTime?
 
-  class           Class           @relation(fields: [classId], references: [id])
-  scores          StudentScore[]
-  studentSubjects StudentSubject[]
-}
-model StudentSubject {
-  id         Int      @id @default(autoincrement())
-  externalId String   @unique @default(uuid())
-  studentId  Int
-  subjectId  Int
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  student Student @relation(fields: [studentId], references: [id])
-  subject Subject @relation(fields: [subjectId], references: [id])
-
-  @@unique([studentId, subjectId])
+  subjectClasses SubjectClass[]
 }
+
+model SubjectClass {
+  id         Int    @id @default(autoincrement())
+  externalId String @unique @default(uuid())
+
+  subjectId Int
+  classId   Int
+
+  subject Subject @relation(fields: [subjectId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  studentSubjects StudentSubject[]
+  scores          StudentScore[]
+}
+
+model StudentSubject {
+  id         Int    @id @default(autoincrement())
+  externalId String @unique @default(uuid())
+
+  studentId      Int
+  subjectClassId Int
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  subjectClass SubjectClass @relation(fields: [subjectClassId], references: [id])
+}
+
 model Test {
   id         Int      @id @default(autoincrement())
   externalId String   @unique @default(uuid())
@@ -90,8 +111,9 @@ model Test {
   totalMarks Int
   classId    Int
   isActive   Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   class  Class          @relation(fields: [classId], references: [id])
@@ -99,32 +121,33 @@ model Test {
 }
 
 model StudentScore {
-  id            Int      @id @default(autoincrement())
-  externalId    String   @unique @default(uuid())
-  studentId     Int
-  subjectId     Int
-  testId        Int
-  obtainedMarks Int
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
+  id         Int    @id @default(autoincrement())
+  externalId String @unique @default(uuid())
 
-  student Student @relation(fields: [studentId], references: [id])
-  subject Subject @relation(fields: [subjectId], references: [id])
-  test    Test    @relation(fields: [testId], references: [id])
+  studentId      Int
+  testId         Int
+  subjectClassId Int
 
-  @@unique([studentId, subjectId, testId])
+  marksObtained Int
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  test         Test         @relation(fields: [testId], references: [id])
+  subjectClass SubjectClass @relation(fields: [subjectClassId], references: [id])
 }
 
 model GradeScale {
-  id            Int      @id @default(autoincrement())
-  externalId    String   @unique @default(uuid())
+  id            Int    @id @default(autoincrement())
+  externalId    String @unique @default(uuid())
   minPercentage Float
   maxPercentage Float
   grade         String
   remarks       String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
-}
 
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
