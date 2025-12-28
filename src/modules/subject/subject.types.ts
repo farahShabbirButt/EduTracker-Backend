@@ -1,5 +1,5 @@
-import { SubjectType } from '@prisma/client';
-import { IBaseEntity } from 'common/entities/base.js';
+import { Prisma, SubjectType } from '@prisma/client';
+import { IBaseEntity } from '../../common/base/baseEntity.js';
 import { v4 as uuid } from 'uuid';
 
 export interface ISubject extends IBaseEntity {
@@ -23,7 +23,7 @@ export interface IUpdateSubject {
   isActive?: boolean;
   updatedBy?: string;
 }
-export function createSubjectMapper(payload: ICreateSubject): Partial<ISubject> {
+export function createSubjectMapper(payload: ICreateSubject): Prisma.SubjectCreateInput {
   return {
     externalId: uuid(),
     name: payload.name,
