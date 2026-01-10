@@ -7,26 +7,26 @@ export class ApiError {
 
     errorModule: IError = SERVER_ERROR,
   ): IAPIErrorResponse {
-    const message = error.message
-      ? error.message
+    const message = error?.message
+      ? error?.message
       : Array.isArray(error) && error[0]?.message
         ? error[0]?.message
         : errorModule?.message;
     return {
       ...{
         message: message,
-        code: error.code || errorModule.code || 500,
+        code: error?.code || errorModule?.code || 500,
         success: false,
         error:
-          (error.message && error.code) || (Array.isArray(error) && error[0]?.code && error[0]?.message)
+          (error?.message && error?.code) || (Array.isArray(error) && error[0]?.code && error[0]?.message)
             ? error
             : errorModule,
       },
-      ...(error.documentation && {
-        documentation: error.documentation,
+      ...(error?.documentation && {
+        documentation: error?.documentation,
       }),
-      ...(error.description && {
-        description: error.description,
+      ...(error?.description && {
+        description: error?.description,
       }),
     };
   }

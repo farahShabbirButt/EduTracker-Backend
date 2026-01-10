@@ -3,17 +3,23 @@ import { NextFunction, Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { ZodSchema } from 'zod';
 
-export const ZodValidator = (schema: ZodSchema) => (req: Request, _res: Response, next: NextFunction) => {
+export const ZodValidator = (schema: ZodSchema) => (req: Request, res: Response, next: NextFunction) => {
+  // Perform safe parsing
   const result = schema.safeParse(req.body);
 
+  // If validation fails, return a structured error response
   if (!result.success) {
-    throw ApiError.format(result.error.issues, {
-      code: StatusCodes.BAD_REQUEST,
-      message: 'Validation failed',
-    });
+    return res.status(StatusCodes.BAD_REQUEST).json(
+      ApiError.format({
+        message: result?.error?.issues[0]?.message,
+        code: StatusCodes.BAD_REQUEST,
+      }),
+    );
   }
 
-  // Replace body with parsed & coerced data
+  // If validation passes, modify the request body and call the next middleware
   req.body = result.data;
-  next();
+
+  // Ensure we call next to proceed with the request processing
+  return next();
 };

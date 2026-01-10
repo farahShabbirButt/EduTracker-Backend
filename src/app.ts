@@ -14,6 +14,10 @@ const BASE = APP_BASE + API_ROUTE;
 const SUBJECT_BASE = BASE + '/subject';
 
 console.info(`Mounted subject routes at:${SUBJECT_BASE}`);
+// app.use((req, _res, next) => {
+//   console.log('➡️ Incoming:', req.method, req.url);
+//   next();
+// });
 
 // Global middlewares
 app.use(cors());
