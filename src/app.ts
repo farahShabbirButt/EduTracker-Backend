@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { API_ROUTE, APP_BASE } from './common/base/baseRoutes.js';
 import { SubjectRoutes } from './modules/subject/index.js';
 import { SubjectClassRoutes } from './modules/subjectClass/index.js';
+import { ClassRoutes } from './modules/class/index.js';
 
 dotenv.config();
 
@@ -14,7 +15,7 @@ console.info('App file loaded');
 const BASE = APP_BASE + API_ROUTE;
 const SUBJECT = BASE + '/subject';
 const SUBJECT_CLASS = BASE + '/subject-class';
-
+const CLASS = BASE + '/class';
 // app.use((req, _res, next) => {
 //   console.log('➡️ Incoming:', req.method, req.url);
 //   next();
@@ -35,5 +36,6 @@ app.get('/health', (_, res) => {
 //Application Routes
 app.use(SUBJECT, SubjectRoutes);
 app.use(SUBJECT_CLASS, SubjectClassRoutes);
+app.use(CLASS, ClassRoutes);
 
 export default app;

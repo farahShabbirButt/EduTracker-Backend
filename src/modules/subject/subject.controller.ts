@@ -39,12 +39,10 @@ class SubjectController extends BaseController {
     try {
       const { externalId } = req.params;
 
-      console.info('AAS', externalId, 'ASSA', req.body);
       const result = await SubjectService.updateSubject(externalId, req.body);
 
       return this.sendSuccessResponse(res, result);
     } catch (error) {
-      console.error('Error Caught', error);
       return this.sendErrorResponse(res, error as IAPIErrorResponse);
     }
   };

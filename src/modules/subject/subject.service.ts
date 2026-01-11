@@ -32,6 +32,28 @@ class SubjectService {
     }
   }
 
+  // async getAllSubjects(): Promise<IAPISuccessResponse> {
+  //   try {
+  //     const subjects = await prisma.subject.findMany({
+  //       where: {
+  //         isActive: true,
+  //         deletedAt: null,
+  //       },
+  //       orderBy: {
+  //         createdAt: 'desc',
+  //       },
+  //     });
+
+  //     return {
+  //       keyName: 'subjects',
+  //       subjects,
+  //       code: SubjectMessages.SUBJECTS_LIST_FETCHED_SUCCESSFULLY.code,
+  //       message: SubjectMessages.SUBJECTS_LIST_FETCHED_SUCCESSFULLY.message,
+  //     };
+  //   } catch (error) {
+  //     throw ApiError.format(error, SubjectMessages.SUBJECTS_LIST_FETCHING_FAILURE);
+  //   }
+  // }
   async getAllSubjects(): Promise<IAPISuccessResponse> {
     try {
       const subjects = await prisma.subject.findMany({
@@ -39,14 +61,40 @@ class SubjectService {
           isActive: true,
           deletedAt: null,
         },
+        include: {
+          subjectClasses: {
+            where: {
+              deletedAt: null,
+              class: {
+                isActive: true,
+                deletedAt: null,
+              },
+            },
+            select: {
+              class: {
+                select: {
+                  externalId: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
         orderBy: {
           createdAt: 'desc',
         },
       });
 
+      // optional: flatten response
+      const formattedSubjects = subjects.map((subject) => ({
+        ...subject,
+        classes: subject.subjectClasses.map((sc) => sc.class),
+        subjectClasses: undefined,
+      }));
+
       return {
         keyName: 'subjects',
-        subjects,
+        subjects: formattedSubjects,
         code: SubjectMessages.SUBJECTS_LIST_FETCHED_SUCCESSFULLY.code,
         message: SubjectMessages.SUBJECTS_LIST_FETCHED_SUCCESSFULLY.message,
       };
@@ -54,6 +102,7 @@ class SubjectService {
       throw ApiError.format(error, SubjectMessages.SUBJECTS_LIST_FETCHING_FAILURE);
     }
   }
+
   async getSubjectById(externalId: string): Promise<IAPISuccessResponse> {
     try {
       const subject = await prisma.subject.findFirst({
@@ -80,7 +129,6 @@ class SubjectService {
 
   async updateSubject(externalId: string, payload: IUpdateSubject): Promise<IAPISuccessResponse> {
     try {
-      console.info('EXTEN', externalId, { payload });
       const subject = await prisma.subject.findFirst({
         where: {
           externalId,
@@ -125,7 +173,6 @@ class SubjectService {
       throw ApiError.format(error, SubjectMessages.SUBJECT_UPDATE_FAILURE);
     }
   }
-
   async deleteSubject(externalId: string): Promise<IAPISuccessResponse> {
     try {
       const subject = await prisma.subject.findFirst({

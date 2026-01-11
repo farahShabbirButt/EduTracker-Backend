@@ -4,7 +4,7 @@ import { SubjectType } from '@prisma/client';
 export const createSubjectValidation = z.object({
   name: z
     .string({
-      error: (iss) => (iss.input === undefined ? 'Subject name is required.' : 'Invalid input.'),
+      error: (iss) => (iss.input === undefined ? 'Subject name is required.' : 'Subject name should be string.'),
     })
     .min(2, 'Subject name must be at least 2 characters')
     .transform((v) => v.trim())

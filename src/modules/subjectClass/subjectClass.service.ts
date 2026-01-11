@@ -1,6 +1,8 @@
 import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { SubjectClassMessages, ICreateSubjectClass } from './index.js';
+import { SubjectMessages } from '../../modules/subject/index.js';
+import { ClassMessages } from '../../modules/class/index.js';
 
 class SubjectClassService {
   async assignSubjectsToClass(payload: ICreateSubjectClass): Promise<IAPISuccessResponse> {
@@ -16,7 +18,7 @@ class SubjectClassService {
         });
 
         if (!classEntity) {
-          throw ApiError.format(null, SubjectClassMessages.CLASS_NOT_FOUND);
+          throw ApiError.format(null, ClassMessages.CLASS_NOT_FOUND);
         }
 
         // Resolve Subjects
@@ -30,7 +32,7 @@ class SubjectClassService {
         });
 
         if (subjects.length !== payload.subjectIds.length) {
-          throw ApiError.format(null, SubjectClassMessages.SUBJECT_NOT_FOUND);
+          throw ApiError.format(null, SubjectMessages.SUBJECT_NOT_FOUND);
         }
 
         const incomingSubjectIds = subjects.map((s) => s.id);
