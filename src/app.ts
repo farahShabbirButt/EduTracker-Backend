@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { API_ROUTE, APP_BASE } from './common/base/baseRoutes.js';
 import { SubjectRoutes } from './modules/subject/index.js';
+import { SubjectClassRoutes } from './modules/subjectClass/index.js';
 
 dotenv.config();
 
@@ -11,13 +12,13 @@ console.info('App file loaded');
 // APP_BASE = '/edu-tracker';
 // API_ROUTE = '/api/v1';
 const BASE = APP_BASE + API_ROUTE;
-const SUBJECT_BASE = BASE + '/subject';
+const SUBJECT = BASE + '/subject';
+const SUBJECT_CLASS = BASE + '/subject-class';
 
-console.info(`Mounted subject routes at:${SUBJECT_BASE}`);
-// app.use((req, _res, next) => {
-//   console.log('➡️ Incoming:', req.method, req.url);
-//   next();
-// });
+app.use((req, _res, next) => {
+  console.info('➡️ Incoming:', req.method, req.url);
+  next();
+});
 
 // Global middlewares
 app.use(cors());
@@ -32,6 +33,7 @@ app.get('/health', (_, res) => {
 });
 
 //Application Routes
-app.use(SUBJECT_BASE, SubjectRoutes);
+app.use(SUBJECT, SubjectRoutes);
+app.use(SUBJECT_CLASS, SubjectClassRoutes);
 
 export default app;
