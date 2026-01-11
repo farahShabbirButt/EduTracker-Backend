@@ -15,10 +15,10 @@ const BASE = APP_BASE + API_ROUTE;
 const SUBJECT = BASE + '/subject';
 const SUBJECT_CLASS = BASE + '/subject-class';
 
-app.use((req, _res, next) => {
-  console.log('➡️ Incoming:', req.method, req.url);
-  next();
-});
+// app.use((req, _res, next) => {
+//   console.log('➡️ Incoming:', req.method, req.url);
+//   next();
+// });
 
 // Global middlewares
 app.use(cors());
