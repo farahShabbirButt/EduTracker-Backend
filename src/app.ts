@@ -16,7 +16,7 @@ const SUBJECT = BASE + '/subject';
 const SUBJECT_CLASS = BASE + '/subject-class';
 
 app.use((req, _res, next) => {
-  console.info('➡️ Incoming:', req.method, req.url);
+  console.log('➡️ Incoming:', req.method, req.url);
   next();
 });
 
