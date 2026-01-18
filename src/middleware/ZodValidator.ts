@@ -9,6 +9,8 @@ export const ZodValidator = (schema: ZodSchema) => (req: Request, res: Response,
 
   // If validation fails, return a structured error response
   if (!result.success) {
+    console.info('ERROR in validation', result.error.issues);
+    console.info('PAYLOAD', req.body);
     return res.status(StatusCodes.BAD_REQUEST).json(
       ApiError.format({
         message: result?.error?.issues[0]?.message,
