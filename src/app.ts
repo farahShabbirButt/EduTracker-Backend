@@ -5,6 +5,7 @@ import { API_ROUTE, APP_BASE } from './common/base/baseRoutes.js';
 import { SubjectRoutes } from './modules/subject/index.js';
 import { SubjectClassRoutes } from './modules/subjectClass/index.js';
 import { ClassRoutes } from './modules/class/index.js';
+import { StudentRoutes } from './modules/student/index.js';
 
 dotenv.config();
 
@@ -16,10 +17,11 @@ const BASE = APP_BASE + API_ROUTE;
 const SUBJECT = BASE + '/subject';
 const SUBJECT_CLASS = BASE + '/subject-class';
 const CLASS = BASE + '/class';
-// app.use((req, _res, next) => {
-//   console.log('➡️ Incoming:', req.method, req.url);
-//   next();
-// });
+const STUDENT = BASE + '/students';
+app.use((req, _res, next) => {
+  console.info('➡️ Incoming:', req.method, req.url);
+  next();
+});
 
 // Global middlewares
 app.use(cors());
@@ -37,5 +39,6 @@ app.get('/health', (_, res) => {
 app.use(SUBJECT, SubjectRoutes);
 app.use(SUBJECT_CLASS, SubjectClassRoutes);
 app.use(CLASS, ClassRoutes);
+app.use(STUDENT, StudentRoutes);
 
 export default app;
