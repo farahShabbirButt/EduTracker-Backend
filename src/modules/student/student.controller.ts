@@ -15,47 +15,57 @@ class StudentController extends BaseController {
       return this.sendErrorResponse(res, error as IAPIErrorResponse);
     }
   };
-  //   getAll = async (_req: Request, res: Response) => {
-  //     try {
-  //       const result = await StudentService.getAllClasses();
-  //       return this.sendSuccessResponse(res, result);
-  //     } catch (error) {
-  //       console.error('Error caught:', error);
-  //       return this.sendErrorResponse(res, error as IAPIErrorResponse);
-  //     }
-  //   };
-  //   getById = async (req: Request, res: Response) => {
-  //     try {
-  //       const { externalId } = req.params;
+  update = async (req: Request, res: Response) => {
+    try {
+      const { studentExternalId } = req.params;
 
-  //       const result = await StudentService.getClassById(externalId);
-  //       return this.sendSuccessResponse(res, result);
-  //     } catch (error) {
-  //       return this.sendErrorResponse(res, error as IAPIErrorResponse);
-  //     }
-  //   };
-  //   update = async (req: Request, res: Response) => {
-  //     try {
-  //       const { externalId } = req.params;
+      const result = await StudentService.updateStudent(studentExternalId, req.body);
 
-  //       const result = await StudentService.updateClass(externalId, req.body);
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+    }
+  };
+  deleteStudent = async (req: Request, res: Response) => {
+    try {
+      const { studentExternalId } = req.params;
 
-  //       return this.sendSuccessResponse(res, result);
-  //     } catch (error) {
-  //       return this.sendErrorResponse(res, error as IAPIErrorResponse);
-  //     }
-  //   };
+      const result = await StudentService.deleteStudent(studentExternalId);
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+    }
+  };
+  getStudentById = async (req: Request, res: Response) => {
+    try {
+      const { studentExternalId } = req.params;
 
-  //   delete = async (req: Request, res: Response) => {
-  //     try {
-  //       const { externalId } = req.params;
+      const result = await StudentService.getStudentById(studentExternalId);
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+    }
+  };
 
-  //       const result = await StudentService.deleteClass(externalId);
-  //       return this.sendSuccessResponse(res, result);
-  //     } catch (error) {
-  //       return this.sendErrorResponse(res, error as IAPIErrorResponse);
-  //     }
-  //   };
+  getStudentsByClassId = async (req: Request, res: Response) => {
+    try {
+      const { classExternalId } = req.params;
+
+      const result = await StudentService.getStudentsByClassId(classExternalId);
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+    }
+  };
+
+  getAllStudents = async (_req: Request, res: Response) => {
+    try {
+      const result = await StudentService.getAllStudents();
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+    }
+  };
 }
 
 export default new StudentController();

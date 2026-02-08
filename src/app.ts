@@ -17,7 +17,7 @@ const BASE = APP_BASE + API_ROUTE;
 const SUBJECT = BASE + '/subject';
 const SUBJECT_CLASS = BASE + '/subject-class';
 const CLASS = BASE + '/class';
-const STUDENT = BASE + '/students';
+const STUDENT = BASE + '/student';
 app.use((req, _res, next) => {
   console.info('➡️ Incoming:', req.method, req.url);
   next();
