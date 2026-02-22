@@ -46,3 +46,11 @@ export const deleteTestValidation = z.object({
     externalId: z.uuid('Class external Id is required.Invalid UUID'),
   }),
 });
+
+export const getAllTestValidation = z.object({
+  query: z.object({
+    classExternalId: z.uuid('Class external Id is required.Invalid UUID').optional(),
+    month: z.coerce.number().min(1).max(12).optional(),
+    year: z.coerce.number().min(2000).max(2100).optional(),
+  }),
+});

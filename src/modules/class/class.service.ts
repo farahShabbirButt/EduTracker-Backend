@@ -11,6 +11,7 @@ class ClassService {
         where: {
           name: payload.name,
           isActive: true,
+          deletedAt: null,
         },
       });
 
@@ -104,6 +105,7 @@ class ClassService {
           where: {
             name: payload.name,
             isActive: true,
+            deletedAt: null,
             externalId: { not: externalId },
           },
         });

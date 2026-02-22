@@ -46,3 +46,8 @@ export const updateSubjectValidation = z
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided for update',
   });
+export const getAllSubjectVaidation = z.object({
+  query: z.object({
+    classExternalId: z.uuid('Class Id is required.Invalid UUID').optional(),
+  }),
+});

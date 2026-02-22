@@ -11,6 +11,7 @@ class TestService {
         where: {
           externalId: payload.classExternalId,
           isActive: true,
+          deletedAt: null,
         },
       });
 
@@ -34,6 +35,7 @@ class TestService {
           year: payload.year,
           testType: payload.testType,
           isActive: true,
+          deletedAt: null,
         },
       });
 
@@ -68,9 +70,8 @@ class TestService {
   async updateTest(externalId: string, payload: IUpdateTest): Promise<IAPISuccessResponse> {
     try {
       const existingTest = await prisma.test.findUnique({
-        where: { externalId, isActive: true },
+        where: { externalId, isActive: true, deletedAt: null },
       });
-      console.info('EXITS', existingTest);
 
       if (!existingTest) {
         throw ApiError.format('', TestMessages.TEST_NOT_FOUND);
@@ -81,7 +82,7 @@ class TestService {
 
       if (payload.classExternalId) {
         const classData = await prisma.class.findFirst({
-          where: { externalId: payload.classExternalId, isActive: true },
+          where: { externalId: payload.classExternalId, isActive: true, deletedAt: null },
         });
 
         if (!classData) {
@@ -101,6 +102,7 @@ class TestService {
           year: payload.year,
           testType: payload.testType,
           isActive: true,
+          deletedAt: null,
         },
       });
 
@@ -136,7 +138,7 @@ class TestService {
   async deleteTest(externalId: string): Promise<IAPISuccessResponse> {
     try {
       const test = await prisma.test.findUnique({
-        where: { externalId, isActive: true },
+        where: { externalId, isActive: true, deletedAt: null },
       });
 
       if (!test) {
@@ -161,10 +163,35 @@ class TestService {
       throw ApiError.format(error, TestMessages.TEST_DELETION_FAILURE);
     }
   }
-  async getAllTests(): Promise<IAPISuccessResponse> {
+  async getAllTests(query: any): Promise<IAPISuccessResponse> {
     try {
+      const { classExternalId, month, year } = query;
+      const whereCondition: any = {
+        isActive: true,
+        deletedAt: null,
+      };
+      if (classExternalId) {
+        const classData = await prisma.class.findUnique({
+          where: { externalId: classExternalId, isActive: true, deletedAt: null },
+        });
+
+        if (!classData) {
+          throw ApiError.format('', TestMessages.CLASS_NOT_FOUND);
+        }
+
+        whereCondition.classId = classData.id;
+      }
+
+      if (month) {
+        whereCondition.month = Number(month);
+      }
+
+      if (year) {
+        whereCondition.year = Number(year);
+      }
+
       const tests = await prisma.test.findMany({
-        where: { isActive: true },
+        where: whereCondition,
         include: {
           class: true,
         },
@@ -185,7 +212,7 @@ class TestService {
   async getTestById(externalId: string): Promise<IAPISuccessResponse> {
     try {
       const test = await prisma.test.findUnique({
-        where: { externalId, isActive: true },
+        where: { externalId, isActive: true, deletedAt: null },
         include: {
           class: true,
           scores: true,

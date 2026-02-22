@@ -33,3 +33,6 @@ export function createSubjectMapper(payload: ICreateSubject): Prisma.SubjectCrea
     createdBy: payload.createdBy ?? null,
   };
 }
+export interface IGetAllSubjectsQuery {
+  classExternalId: string;
+}

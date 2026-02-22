@@ -16,9 +16,9 @@ class TestController extends BaseController {
     }
   };
   //TODO: handle pagination later if needed
-  getAll = async (_req: Request, res: Response) => {
+  getAll = async (req: Request, res: Response) => {
     try {
-      const result = await TestService.getAllTests();
+      const result = await TestService.getAllTests(req.query);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
       console.error('Error caught:', error);

@@ -16,9 +16,9 @@ class SubjectController extends BaseController {
     }
   };
   //TODO: handle pagination later if needed
-  getAll = async (_req: Request, res: Response) => {
+  getAll = async (req: Request, res: Response) => {
     try {
-      const result = await SubjectService.getAllSubjects();
+      const result = await SubjectService.getAllSubjects(req.query as any);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
       console.error('Error caught:', error);

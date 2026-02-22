@@ -59,3 +59,7 @@ export const SUBJECT_DELETED_FAILURE = Object.freeze({
   message: 'Subject deletion failed',
   code: StatusCodes.BAD_REQUEST,
 });
+export const CLASS_NOT_FOUND = Object.freeze({
+  message: 'Class not found',
+  code: StatusCodes.NOT_FOUND,
+});

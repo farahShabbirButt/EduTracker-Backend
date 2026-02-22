@@ -12,6 +12,7 @@ class StudentService {
         where: {
           externalId: payload.classId,
           isActive: true,
+          deletedAt: null,
         },
       });
 
@@ -74,6 +75,7 @@ class StudentService {
         where: {
           externalId: studentExternalId,
           isActive: true,
+          deletedAt: null,
         },
       });
 
@@ -89,6 +91,7 @@ class StudentService {
           where: {
             externalId: payload.classId,
             isActive: true,
+            deletedAt: null,
           },
         });
 
@@ -142,6 +145,7 @@ class StudentService {
         where: {
           externalId: studentExternalId,
           isActive: true,
+          deletedAt: null,
         },
         include: this.studentInclude,
       });
@@ -170,6 +174,7 @@ class StudentService {
         where: {
           externalId: classExternalId,
           isActive: true,
+          deletedAt: null,
         },
       });
 
@@ -181,6 +186,7 @@ class StudentService {
         where: {
           classId: classEntity.id,
           isActive: true,
+          deletedAt: null,
         },
         include: this.studentInclude,
         orderBy: {

@@ -7,6 +7,7 @@ import { SubjectClassRoutes } from './modules/subjectClass/index.js';
 import { ClassRoutes } from './modules/class/index.js';
 import { StudentRoutes } from './modules/student/index.js';
 import { TestRoutes } from './modules/test/index.js';
+import { StudentScoreRoutes } from './modules/studentScore/index.js';
 
 dotenv.config();
 
@@ -20,9 +21,10 @@ const SUBJECT_CLASS = BASE + '/subject-class';
 const CLASS = BASE + '/class';
 const STUDENT = BASE + '/student';
 const TEST = BASE + '/test';
+const STUDENT_SCORE = BASE + '/student-score';
 
 app.use((req, _res, next) => {
-  console.info('➡️ Incoming:', req.method, req.url);
+  console.info('➡️ Incoming: ', req.method, req.url);
   next();
 });
 
@@ -44,5 +46,6 @@ app.use(SUBJECT_CLASS, SubjectClassRoutes);
 app.use(CLASS, ClassRoutes);
 app.use(STUDENT, StudentRoutes);
 app.use(TEST, TestRoutes);
+app.use(STUDENT_SCORE, StudentScoreRoutes);
 
 export default app;

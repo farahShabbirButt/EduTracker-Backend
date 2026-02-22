@@ -1,6 +1,6 @@
 import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
-import { createSubjectMapper, ICreateSubject, IUpdateSubject, SubjectMessages } from './index.js';
+import { createSubjectMapper, ICreateSubject, IGetAllSubjectsQuery, IUpdateSubject, SubjectMessages } from './index.js';
 
 class SubjectService {
   async createSubject(payload: ICreateSubject): Promise<IAPISuccessResponse> {
@@ -10,6 +10,7 @@ class SubjectService {
         where: {
           name: payload.name,
           isActive: true,
+          deletedAt: null,
         },
       });
       if (existingSubject) {
@@ -32,34 +33,28 @@ class SubjectService {
     }
   }
 
-  // async getAllSubjects(): Promise<IAPISuccessResponse> {
-  //   try {
-  //     const subjects = await prisma.subject.findMany({
-  //       where: {
-  //         isActive: true,
-  //         deletedAt: null,
-  //       },
-  //       orderBy: {
-  //         createdAt: 'desc',
-  //       },
-  //     });
-
-  //     return {
-  //       keyName: 'subjects',
-  //       subjects,
-  //       code: SubjectMessages.SUBJECTS_LIST_FETCHED_SUCCESSFULLY.code,
-  //       message: SubjectMessages.SUBJECTS_LIST_FETCHED_SUCCESSFULLY.message,
-  //     };
-  //   } catch (error) {
-  //     throw ApiError.format(error, SubjectMessages.SUBJECTS_LIST_FETCHING_FAILURE);
-  //   }
-  // }
-  async getAllSubjects(): Promise<IAPISuccessResponse> {
+  async getAllSubjects(query: IGetAllSubjectsQuery): Promise<IAPISuccessResponse> {
     try {
+      const { classExternalId } = query;
+
+      let classId = null;
+
+      if (classExternalId) {
+        const classData = await prisma.class.findUnique({
+          where: { externalId: classExternalId, isActive: true, deletedAt: null },
+        });
+
+        if (!classData) {
+          throw ApiError.format('', SubjectMessages.CLASS_NOT_FOUND);
+        }
+
+        classId = classData.id;
+      }
       const subjects = await prisma.subject.findMany({
         where: {
           isActive: true,
           deletedAt: null,
+          ...(classId && { subjectClasses: { some: { classId } } }),
         },
         include: {
           subjectClasses: {
@@ -68,6 +63,7 @@ class SubjectService {
               class: {
                 isActive: true,
                 deletedAt: null,
+                ...(classId && { id: classId }),
               },
             },
             select: {
@@ -146,6 +142,7 @@ class SubjectService {
           where: {
             name: payload.name,
             isActive: true,
+            deletedAt: null,
             externalId: { not: externalId },
           },
         });
