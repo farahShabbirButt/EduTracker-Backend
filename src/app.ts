@@ -8,6 +8,8 @@ import { ClassRoutes } from './modules/class/index.js';
 import { StudentRoutes } from './modules/student/index.js';
 import { TestRoutes } from './modules/test/index.js';
 import { StudentScoreRoutes } from './modules/studentScore/index.js';
+import { notFoundMiddleware } from './middleware/notFound.middleware.js';
+import { errorMiddleware } from './middleware/error.middleware.js';
 
 dotenv.config();
 
@@ -47,5 +49,9 @@ app.use(CLASS, ClassRoutes);
 app.use(STUDENT, StudentRoutes);
 app.use(TEST, TestRoutes);
 app.use(STUDENT_SCORE, StudentScoreRoutes);
+
+// 404 + error handlers — must be registered AFTER all routes
+app.use(notFoundMiddleware);
+app.use(errorMiddleware);
 
 export default app;

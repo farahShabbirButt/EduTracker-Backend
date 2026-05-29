@@ -57,9 +57,9 @@ export const updateStudentValidation = z.object({
     email: z.string().email().optional(),
     contactNo: z.string().min(7).max(20).optional(),
 
-    electiveSubjectExternalIds: z.array(z.string().uuid()).optional(),
+    electiveSubjectIds: z.array(z.string().uuid()).optional(),
 
-    classExternalId: z.string().uuid().optional(),
+    classId: z.string().uuid().optional(),
   }),
 });
 export const deleteStudentValidation = z.object({

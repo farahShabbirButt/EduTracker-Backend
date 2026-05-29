@@ -7,7 +7,7 @@ const router = Router();
 router.get('/:classExternalId/subjects', ClassController.getSubjectsByClass);
 router.post('/', ZodValidator(ClassValidation.createClassValidation), ClassController.create);
 
-router.put('/:id', ZodValidator(ClassValidation.updateClassValidation), ClassController.update);
+router.put('/:externalId', ZodValidator(ClassValidation.updateClassValidation), ClassController.update);
 
 router.get('/', ClassController.getAll);
 router.get('/:externalId', ClassController.getById);

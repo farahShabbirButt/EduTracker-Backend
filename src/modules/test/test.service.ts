@@ -113,13 +113,11 @@ class TestService {
       const updatedTest = await prisma.test.update({
         where: { id: existingTest.id },
         data: {
-          ...existingTest,
-          ...payload,
-          // name: payload.name,
-          // testType: payload.testType,
-          // month: payload.month,
-          // year: payload.year,
-          // totalMarks: payload.totalMarks,
+          name: payload.name,
+          testType: payload.testType,
+          month: payload.month,
+          year: payload.year,
+          totalMarks: payload.totalMarks,
           classId: classId,
         },
       });
