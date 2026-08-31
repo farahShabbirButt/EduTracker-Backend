@@ -174,3 +174,32 @@ model GradeScale {
   createdBy String?
   updatedBy String?
 }
+
+model User {
+  id           Int       @id @default(autoincrement())
+  externalId   String    @unique @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id         Int       @id @default(autoincrement())
+  externalId String    @unique @default(uuid())
+  tokenHash  String    @unique
+  userId     Int
+  expiresAt  DateTime
+  usedAt     DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
