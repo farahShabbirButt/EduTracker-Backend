@@ -1,21 +1,21 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../../common/base/baseController.js';
 import { StudentService } from './index.js';
 
 class StudentController extends BaseController {
-  create = async (req: Request, res: Response) => {
+  create = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await StudentService.createStudent({
         ...req.body,
-        createdBy: req.headers['user-external-id'] as string,
+        createdBy: req.user!.externalId,
       });
 
       return this.sendSuccessResponse(res, result);
     } catch (error) {
-      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+      return next(error);
     }
   };
-  update = async (req: Request, res: Response) => {
+  update = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { studentExternalId } = req.params;
 
@@ -23,47 +23,47 @@ class StudentController extends BaseController {
 
       return this.sendSuccessResponse(res, result);
     } catch (error) {
-      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+      return next(error);
     }
   };
-  deleteStudent = async (req: Request, res: Response) => {
+  deleteStudent = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { studentExternalId } = req.params;
 
       const result = await StudentService.deleteStudent(studentExternalId);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
-      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+      return next(error);
     }
   };
-  getStudentById = async (req: Request, res: Response) => {
+  getStudentById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { studentExternalId } = req.params;
 
       const result = await StudentService.getStudentById(studentExternalId);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
-      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+      return next(error);
     }
   };
 
-  getStudentsByClassId = async (req: Request, res: Response) => {
+  getStudentsByClassId = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { classExternalId } = req.params;
 
       const result = await StudentService.getStudentsByClassId(classExternalId);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
-      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+      return next(error);
     }
   };
 
-  getAllStudents = async (_req: Request, res: Response) => {
+  getAllStudents = async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await StudentService.getAllStudents();
       return this.sendSuccessResponse(res, result);
     } catch (error) {
-      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+      return next(error);
     }
   };
 }
