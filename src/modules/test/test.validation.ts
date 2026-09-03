@@ -21,6 +21,31 @@ export const createTestValidation = z.object({
     totalMarks: z.number('Totals Marks should be a valid number greater than 0').positive(),
 
     classExternalId: z.uuid('Class external Id is required.Invalid UUID'),
+
+    subjects: z
+      .array(
+        z.object({
+          subjectExternalId: z.uuid('Invalid subject id'),
+          maxMarks: z.number('Max marks must be a number').int().positive(),
+        }),
+      )
+      .min(1, 'A test must include at least one subject'),
+  }),
+});
+
+export const setTestSubjectsValidation = z.object({
+  params: z.object({
+    externalId: z.uuid('Test external Id is required.Invalid UUID'),
+  }),
+  body: z.object({
+    subjects: z
+      .array(
+        z.object({
+          subjectExternalId: z.uuid('Invalid subject id'),
+          maxMarks: z.number('Max marks must be a number').int().positive(),
+        }),
+      )
+      .min(1, 'A test must include at least one subject'),
   }),
 });
 

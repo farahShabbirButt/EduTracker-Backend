@@ -6,8 +6,7 @@ export interface IStudentScoreItem {
 }
 export interface IMarksEntry extends IBaseEntity {
   studentId: number;
-  testId: number;
-  subjectClassId: number;
+  testSubjectId: number;
   marksObtained: number;
 }
 export interface ICreateMarksEntry {

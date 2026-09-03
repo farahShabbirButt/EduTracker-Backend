@@ -68,3 +68,23 @@ export const TESTS_LIST_FETCHING_FAILURE = Object.freeze({
   message: 'TestTs fetching failed',
   code: StatusCodes.BAD_REQUEST,
 });
+
+export const SUBJECT_NOT_IN_CLASS = Object.freeze({
+  message: 'One or more subjects are not assigned to this class',
+  code: StatusCodes.BAD_REQUEST,
+});
+
+export const TEST_SUBJECT_HAS_SCORES = Object.freeze({
+  message: 'Cannot remove a subject that already has marks entered for it',
+  code: StatusCodes.CONFLICT,
+});
+
+export const TEST_SUBJECTS_FETCHED_SUCCESSFULLY = Object.freeze({
+  message: 'Test subjects fetched successfully',
+  code: StatusCodes.OK,
+});
+
+export const TEST_SUBJECTS_UPDATED_SUCCESSFULLY = Object.freeze({
+  message: 'Test subjects updated successfully',
+  code: StatusCodes.OK,
+});

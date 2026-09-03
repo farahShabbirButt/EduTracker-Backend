@@ -24,65 +24,72 @@ class StudentScoreService {
       throw ApiError.format('', StudentScoreMessages.TEST_NOT_FOUND);
     }
 
-    // Validate subjectClass
-    const subjectClass = await prisma.subjectClass.findFirst({
+    // Resolve the TestSubject once, up front — the per-test-per-subject config row
+    const testSubject = await prisma.testSubject.findFirst({
       where: {
-        classId: classData.id,
-        subject: {
-          externalId: subjectExternalId,
-          isActive: true,
-          deletedAt: null,
+        testId: testData.id,
+        deletedAt: null,
+        subjectClass: {
+          classId: classData.id,
+          subject: { externalId: subjectExternalId, isActive: true, deletedAt: null },
         },
       },
-      include: { subject: true },
     });
 
-    if (!subjectClass) {
-      throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_FOUND);
+    if (!testSubject) {
+      throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_IN_TEST);
     }
 
-    // Process each student score
+    // Validate every score BEFORE opening the transaction — a failure halfway through
+    // must not leave earlier writes committed.
     for (const item of scores) {
-      const student = await prisma.student.findUnique({
-        where: { externalId: item.studentExternalId, isActive: true, deletedAt: null },
-      });
-
-      if (!student || student.classId !== classData.id) {
-        continue; // skip invalid students safely
+      if (item.marksObtained < 0) {
+        throw ApiError.format('', StudentScoreMessages.MARKS_NEGATIVE);
       }
-
-      // Validate marks not exceeding total
-      if (item.marksObtained > testData.totalMarks) {
+      if (item.marksObtained > testSubject.maxMarks) {
         throw ApiError.format('', StudentScoreMessages.MARKS_EXCEED_TOTAL);
       }
-
-      const existingScore = await prisma.studentScore.findFirst({
-        where: {
-          studentId: student.id,
-          testId: testData.id,
-          subjectClassId: subjectClass.id,
-        },
-      });
-
-      if (existingScore) {
-        await prisma.studentScore.update({
-          where: { id: existingScore.id },
-          data: { marksObtained: item.marksObtained },
-        });
-      } else {
-        await prisma.studentScore.create({
-          data: {
-            studentId: student.id,
-            testId: testData.id,
-            subjectClassId: subjectClass.id,
-            marksObtained: item.marksObtained,
-          },
-        });
-      }
     }
+
+    // Resolve students in one query (replaces the per-student N+1 lookup)
+    const students = await prisma.student.findMany({
+      where: {
+        externalId: { in: scores.map((s) => s.studentExternalId) },
+        classId: classData.id,
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+    const byExternalId = new Map(students.map((s) => [s.externalId, s.id]));
+
+    // Students that don't belong to this class are silently skipped, but counted so a
+    // typo in the request is not invisible.
+    const skippedStudentsCount = scores.filter((item) => !byExternalId.has(item.studentExternalId)).length;
+
+    await prisma.$transaction(
+      scores
+        .filter((item) => byExternalId.has(item.studentExternalId))
+        .map((item) =>
+          prisma.studentScore.upsert({
+            where: {
+              studentId_testSubjectId: {
+                studentId: byExternalId.get(item.studentExternalId)!,
+                testSubjectId: testSubject.id,
+              },
+            },
+            create: {
+              studentId: byExternalId.get(item.studentExternalId)!,
+              testSubjectId: testSubject.id,
+              marksObtained: item.marksObtained,
+            },
+            update: { marksObtained: item.marksObtained },
+          }),
+        ),
+    );
 
     return {
       keyName: 'studentScores',
+      studentScores: { skippedStudentsCount },
       code: StudentScoreMessages.MARKS_SAVED_SUCCESSFULLY.code,
       message: StudentScoreMessages.MARKS_SAVED_SUCCESSFULLY.message,
       success: true,
@@ -137,6 +144,16 @@ class StudentScoreService {
       throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_FOUND);
     }
 
+    // Resolve the TestSubject config row — the entry UI needs its per-subject maxMarks,
+    // and scores are now keyed off testSubjectId, not testId + subjectClassId.
+    const testSubject = await prisma.testSubject.findFirst({
+      where: { testId: testData.id, subjectClassId: subjectClass.id, deletedAt: null },
+    });
+
+    if (!testSubject) {
+      throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_IN_TEST);
+    }
+
     // Fetch students assigned to this subject
     const students = await prisma.student.findMany({
       where: {
@@ -157,8 +174,7 @@ class StudentScoreService {
     // Fetch existing scores for this test & subject
     const scores = await prisma.studentScore.findMany({
       where: {
-        testId: testData.id,
-        subjectClassId: subjectClass.id,
+        testSubjectId: testSubject.id,
       },
     });
 
@@ -169,9 +185,13 @@ class StudentScoreService {
       scoreMap.set(score.studentId, score.marksObtained);
     });
 
-    // Merge students with marks
+    // Merge students with marks — explicit projection so internal id/classId never leave the service layer
     const formattedStudents = students.map((student) => ({
-      ...student,
+      externalId: student.externalId,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      fatherName: student.fatherName,
+      rollNumber: student.rollNumber,
       marksObtained: scoreMap.get(student.id) ?? null,
     }));
 
@@ -187,6 +207,7 @@ class StudentScoreService {
           externalId: testData.externalId,
           name: testData.name,
           totalMarks: testData.totalMarks,
+          maxMarks: testSubject.maxMarks,
           month: testData.month,
           year: testData.year,
         },

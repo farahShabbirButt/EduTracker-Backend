@@ -11,7 +11,12 @@ export const MARKS_SAVE_FAILURE = Object.freeze({
 });
 
 export const MARKS_EXCEED_TOTAL = Object.freeze({
-  message: 'Marks obtained cannot exceed total marks of test',
+  message: 'Marks obtained cannot exceed the maximum marks for this subject',
+  code: StatusCodes.BAD_REQUEST,
+});
+
+export const MARKS_NEGATIVE = Object.freeze({
+  message: 'Marks obtained cannot be negative',
   code: StatusCodes.BAD_REQUEST,
 });
 
@@ -28,6 +33,11 @@ export const TEST_NOT_FOUND = Object.freeze({
 export const SUBJECT_NOT_FOUND = Object.freeze({
   message: 'Subject not found for selected class',
   code: StatusCodes.NOT_FOUND,
+});
+
+export const SUBJECT_NOT_IN_TEST = Object.freeze({
+  message: 'This subject is not configured for the selected test',
+  code: StatusCodes.BAD_REQUEST,
 });
 
 export const STUDENT_SCORE_FETCHED_SUCCESSFULLY = Object.freeze({
