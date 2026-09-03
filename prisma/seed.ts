@@ -33,6 +33,31 @@ async function seedAdmin() {
     );
 }
 
+const INSTITUTE = {
+    name: "FARRUKH ACADEMY OF SCIENCE",
+    address:
+        "Dhobi Ghat Stop Near Nafeerabad Graveyard Shalimar Town Lahore",
+    phone: "+92 324 0012215",
+};
+
+// Idempotent: creates the Institute row if one with this name doesn't already exist.
+async function seedInstitute() {
+    const existing = await prisma.institute.findFirst({
+        where: { name: INSTITUTE.name },
+    });
+    if (existing) {
+        console.info(
+            `✅ Institute already exists: ${INSTITUTE.name} — skipping`
+        );
+        return;
+    }
+
+    const institute = await prisma.institute.create({ data: INSTITUTE });
+    console.info(
+        `✅ Institute created: ${INSTITUTE.name} (externalId: ${institute.externalId})`
+    );
+}
+
 // Destructive — wipes existing GradeScale rows.
 async function seedGradeScales() {
     console.info("🌱 Seeding GradeScale...");
@@ -112,6 +137,9 @@ async function seedClasses() {
 async function main() {
     console.info("🌱 Seeding Admin user...");
     await seedAdmin();
+
+    console.info("🌱 Seeding Institute...");
+    await seedInstitute();
 
     if (env.seedDevData) {
         console.info(
