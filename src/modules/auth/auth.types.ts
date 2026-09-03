@@ -32,6 +32,9 @@ export interface IAuthUser {
 // after `authMiddleware` runs. Optional because public routes (e.g. /auth/login)
 // don't have it set.
 declare global {
+  // `declare global { namespace Express }` is the only way to augment Express's
+  // Request type; ES module syntax cannot express a global ambient augmentation.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: IJwtPayload;

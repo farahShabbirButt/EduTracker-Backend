@@ -32,9 +32,11 @@ export const env = {
 };
 
 if (!env.databaseUrl) {
-  throw new Error('DATABASE_URL is not defined');
+  throw new Error('DATABASE_URL is not defined — copy .env.example to .env and set your PostgreSQL connection string.');
 }
 
 if (!env.jwtSecret) {
-  throw new Error('JWT_SECRET is not defined');
+  throw new Error(
+    'JWT_SECRET is not defined — generate one with `openssl rand -hex 64` and add it to .env. Rotating it logs everyone out.',
+  );
 }

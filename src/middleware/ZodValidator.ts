@@ -11,10 +11,10 @@ export const ZodValidator = (schema: ZodSchema) => (req: Request, res: Response,
   });
 
   if (!result.success) {
-    console.info('ERROR in validation', result.error.issues);
-    console.info('BODY', req.body);
-    console.info('PARAMS', req.params);
-    console.info('QUERY', req.query);
+    console.info(
+      'Validation failed:',
+      result.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+    );
 
     return res.status(StatusCodes.BAD_REQUEST).json(
       ApiError.format({

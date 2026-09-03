@@ -40,8 +40,7 @@ export const resetPasswordValidation = z.object({
     // 8 chars is a sane floor; we don't enforce uppercase/digit/symbol mixes.
     newPassword: z
       .string({
-        error: (iss) =>
-          iss.input === undefined ? 'New password is required.' : 'New password must be a string.',
+        error: (iss) => (iss.input === undefined ? 'New password is required.' : 'New password must be a string.'),
       })
       .min(8, 'New password must be at least 8 characters'),
   }),

@@ -11,11 +11,6 @@ export const INVALID_CREDENTIALS = Object.freeze({
   code: StatusCodes.UNAUTHORIZED,
 });
 
-export const LOGIN_FAILURE = Object.freeze({
-  message: 'Failed to log in',
-  code: StatusCodes.INTERNAL_SERVER_ERROR,
-});
-
 // ── Session / Me / Logout ───────────────────────────────────────────────
 export const UNAUTHORIZED = Object.freeze({
   message: 'Authentication required',
@@ -30,11 +25,6 @@ export const INVALID_TOKEN = Object.freeze({
 export const ME_FETCHED_SUCCESSFULLY = Object.freeze({
   message: 'Current user fetched successfully',
   code: StatusCodes.OK,
-});
-
-export const ME_FETCH_FAILURE = Object.freeze({
-  message: 'Failed to fetch current user',
-  code: StatusCodes.INTERNAL_SERVER_ERROR,
 });
 
 export const USER_NOT_FOUND = Object.freeze({

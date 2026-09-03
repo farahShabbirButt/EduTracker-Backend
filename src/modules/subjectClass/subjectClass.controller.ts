@@ -1,18 +1,18 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../../common/base/baseController.js';
 import { SubjectClassService } from './index.js';
 
 class SubjectClassController extends BaseController {
-  assignSubjectsToClass = async (req: Request, res: Response) => {
+  assignSubjectsToClass = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await SubjectClassService.assignSubjectsToClass({
         ...req.body,
-        createdBy: req.headers['user-external-id'] as string | undefined,
+        createdBy: req.user!.externalId,
       });
 
       return this.sendSuccessResponse(res, result);
     } catch (error) {
-      return this.sendErrorResponse(res, error as IAPIErrorResponse);
+      return next(error);
     }
   };
 }

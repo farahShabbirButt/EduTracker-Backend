@@ -19,6 +19,9 @@ function getTransporter(): Transporter {
     host,
     port,
     auth: { user, pass },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
   });
   return transporter;
 }
