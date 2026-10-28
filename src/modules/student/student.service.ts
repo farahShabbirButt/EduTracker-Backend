@@ -1,4 +1,4 @@
-import prisma from '../../lib/prisma.js';
+import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { ICreateStudent, IUpdateStudent, StudentMessages } from './index.js';
 import { StudentSubjectService } from '../../modules/studentSubject/index.js';
@@ -34,28 +34,35 @@ class StudentService {
       throw ApiError.format('', StudentMessages.STUDENT_ALREADY_EXISTS);
     }
 
-    // Create student
-    const createdStudent = await prisma.student.create({
-      data: {
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        fatherName: payload.fatherName,
-        rollNumber: payload.rollNumber,
-        email: payload.email,
-        contactNo: payload.contactNo,
-        classId: classEntity.id,
-        isActive: payload.isActive ?? true,
-        createdBy: payload.createdBy,
-      },
-    });
+    // Create student + assign subjects atomically; compulsory subjects are always assigned, electives only if provided
+    const createdStudent = await prisma.$transaction(async (tx) => {
+      const student = await tx.student
+        .create({
+          data: {
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            fatherName: payload.fatherName,
+            rollNumber: payload.rollNumber,
+            email: payload.email,
+            contactNo: payload.contactNo,
+            classId: classEntity.id,
+            isActive: payload.isActive ?? true,
+            createdBy: payload.createdBy,
+          },
+        })
+        .catch(rethrowUniqueViolation(StudentMessages.STUDENT_ALREADY_EXISTS));
 
-    if (payload.electiveSubjectIds) {
-      await StudentSubjectService.assignSubjectsToStudent({
-        studentId: createdStudent.id,
-        classId: classEntity.id,
-        subjectIds: payload.electiveSubjectIds ?? [],
-      });
-    }
+      await StudentSubjectService.assignSubjectsToStudent(
+        {
+          studentId: student.id,
+          classId: classEntity.id,
+          subjectIds: payload.electiveSubjectIds ?? [],
+        },
+        tx,
+      );
+
+      return student;
+    });
     return {
       keyName: 'student',
       student: createdStudent,
@@ -98,30 +105,40 @@ class StudentService {
       classId = classEntity.id;
     }
 
-    // Update student basic info
-    const updatedStudent = await prisma.student.update({
-      where: { id: student.id },
-      data: {
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        fatherName: payload.fatherName,
-        email: payload.email,
-        contactNo: payload.contactNo,
-        ...(classId !== student.classId && {
-          classId,
-        }),
-      },
-    });
+    // Update student + reassign subjects atomically, so a failed reassignment can't leave the student with none
+    const updatedStudent = await prisma.$transaction(async (tx) => {
+      // Moving class can collide with a student already holding this roll number there
+      const updated = await tx.student
+        .update({
+          where: { id: student.id },
+          data: {
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            fatherName: payload.fatherName,
+            email: payload.email,
+            contactNo: payload.contactNo,
+            ...(classId !== student.classId && {
+              classId,
+            }),
+          },
+        })
+        .catch(rethrowUniqueViolation(StudentMessages.STUDENT_ALREADY_EXISTS));
 
-    // Reassign subjects ONLY if electives provided OR class changed
-    if (payload.electiveSubjectIds || classId !== student.classId) {
-      await StudentSubjectService.assignSubjectsToStudent({
-        studentId: student.id,
-        classId,
-        subjectIds: payload.electiveSubjectIds ?? [],
-        replaceExisting: true,
-      });
-    }
+      // Reassign subjects ONLY if electives provided OR class changed
+      if (payload.electiveSubjectIds || classId !== student.classId) {
+        await StudentSubjectService.assignSubjectsToStudent(
+          {
+            studentId: student.id,
+            classId,
+            subjectIds: payload.electiveSubjectIds ?? [],
+            replaceExisting: true,
+          },
+          tx,
+        );
+      }
+
+      return updated;
+    });
 
     return {
       keyName: 'student',

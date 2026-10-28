@@ -1,7 +1,18 @@
-import prisma from '../../lib/prisma.js';
+import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { ClassMessages, createClassMapper, ICreateClass, IUpdateClass } from './index.js';
 import { SubjectMessages } from '../../modules/subject/index.js';
+import { Prisma } from '@prisma/client';
+
+// Every class response goes through this projection — internal ids and the enrolled students'
+// full records stay inside the service layer (the UI only reads externalId + name)
+const CLASS_PUBLIC_FIELDS = {
+  externalId: true,
+  name: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ClassSelect;
 
 class ClassService {
   async createClass(payload: ICreateClass): Promise<IAPISuccessResponse> {
@@ -19,9 +30,12 @@ class ClassService {
     }
 
     const classData = createClassMapper(payload);
-    const createdClass = await prisma.class.create({
-      data: classData,
-    });
+    const createdClass = await prisma.class
+      .create({
+        data: classData,
+        select: CLASS_PUBLIC_FIELDS,
+      })
+      .catch(rethrowUniqueViolation(ClassMessages.CLASS_ALREADY_EXISTS));
 
     return {
       keyName: 'class',
@@ -38,15 +52,9 @@ class ClassService {
         isActive: true,
         deletedAt: null,
       },
-      include: {
-        subjectClasses: {
-          where: { deletedAt: null },
-        },
-        students: {
-          where: { deletedAt: null, isActive: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+      select: CLASS_PUBLIC_FIELDS,
+      // id breaks ties — rows created in the same instant (e.g. seeded) otherwise come back in random order
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
 
     return {
@@ -60,10 +68,7 @@ class ClassService {
   async getClassById(externalId: string): Promise<IAPISuccessResponse> {
     const classItem = await prisma.class.findFirst({
       where: { externalId, deletedAt: null },
-      include: {
-        subjectClasses: { where: { deletedAt: null } },
-        students: { where: { deletedAt: null, isActive: true } },
-      },
+      select: CLASS_PUBLIC_FIELDS,
     });
 
     if (!classItem) {
@@ -102,10 +107,13 @@ class ClassService {
       }
     }
 
-    const updatedClass = await prisma.class.update({
-      where: { id: classItem.id },
-      data: { ...payload, updatedBy: payload.updatedBy ?? null },
-    });
+    const updatedClass = await prisma.class
+      .update({
+        where: { id: classItem.id },
+        data: { ...payload, updatedBy: payload.updatedBy ?? null },
+        select: CLASS_PUBLIC_FIELDS,
+      })
+      .catch(rethrowUniqueViolation(ClassMessages.CLASS_ALREADY_EXISTS));
 
     return {
       keyName: 'class',
@@ -162,9 +170,7 @@ class ClassService {
       include: {
         subject: true,
       },
-      orderBy: {
-        createdAt: 'asc',
-      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
 
     return {

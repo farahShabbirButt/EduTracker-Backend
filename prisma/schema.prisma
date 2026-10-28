@@ -65,7 +65,9 @@ model Student {
   studentSubjects StudentSubject[]
   conducts        StudentConduct[]
 
-  @@unique([classId, rollNumber])
+  // (classId, rollNumber) is unique among NON-deleted students only — a partial unique index
+  // Prisma can't express. It lives in migration `soft_delete_aware_unique_indexes`; same for
+  // Class.name, Subject.name and Test (classId, name, month, year, testType).
 }
 
 model Subject {

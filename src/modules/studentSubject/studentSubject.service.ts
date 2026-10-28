@@ -1,15 +1,18 @@
 import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { StudentSubjectMessages, ICreateStudentSubjects } from './index.js';
-import { SubjectType } from '@prisma/client';
+import { Prisma, SubjectType } from '@prisma/client';
 
 class StudentSubjectService {
-  async assignSubjectsToStudent(params: ICreateStudentSubjects) {
+  // Pass `tx` to run inside the caller's transaction (e.g. student create/update)
+  async assignSubjectsToStudent(params: ICreateStudentSubjects, tx: Prisma.TransactionClient = prisma) {
     const { studentId, classId, subjectIds = [], replaceExisting = false } = params;
     // Fetch all active subjects of class
-    const classSubjects = await prisma.subjectClass.findMany({
+    const classSubjects = await tx.subjectClass.findMany({
       where: {
         classId,
+        deletedAt: null,
+        subject: { isActive: true, deletedAt: null },
       },
       include: {
         subject: true,
@@ -32,7 +35,7 @@ class StudentSubjectService {
     }
     // Remove existing assignments
     if (replaceExisting) {
-      await prisma.studentSubject.deleteMany({
+      await tx.studentSubject.deleteMany({
         where: {
           studentId,
         },
@@ -47,7 +50,7 @@ class StudentSubjectService {
 
     // Assign subjects
     if (studentSubjectsData.length) {
-      await prisma.studentSubject.createMany({
+      await tx.studentSubject.createMany({
         data: studentSubjectsData,
       });
     }

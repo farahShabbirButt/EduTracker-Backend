@@ -1,4 +1,4 @@
-import prisma from '../../lib/prisma.js';
+import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { createSubjectMapper, ICreateSubject, IGetAllSubjectsQuery, IUpdateSubject, SubjectMessages } from './index.js';
 
@@ -16,9 +16,11 @@ class SubjectService {
       throw ApiError.format('', SubjectMessages.SUBJECT_ALREADY_EXISTS);
     }
     const subjectData = createSubjectMapper(payload);
-    const createdSubject = await prisma.subject.create({
-      data: subjectData,
-    });
+    const createdSubject = await prisma.subject
+      .create({
+        data: subjectData,
+      })
+      .catch(rethrowUniqueViolation(SubjectMessages.SUBJECT_ALREADY_EXISTS));
 
     return {
       keyName: 'subject',
@@ -71,9 +73,8 @@ class SubjectService {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      // id breaks ties between rows created in the same instant
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
 
     // optional: flatten response
@@ -139,13 +140,15 @@ class SubjectService {
       }
     }
 
-    const updatedSubject = await prisma.subject.update({
-      where: { id: subject.id },
-      data: {
-        ...payload,
-        updatedBy: payload.updatedBy ?? null,
-      },
-    });
+    const updatedSubject = await prisma.subject
+      .update({
+        where: { id: subject.id },
+        data: {
+          ...payload,
+          updatedBy: payload.updatedBy ?? null,
+        },
+      })
+      .catch(rethrowUniqueViolation(SubjectMessages.SUBJECT_ALREADY_EXISTS));
 
     return {
       keyName: 'subject',

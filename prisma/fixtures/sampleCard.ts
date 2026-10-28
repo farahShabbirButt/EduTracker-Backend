@@ -15,6 +15,9 @@ import { PrismaClient, SubjectType, TestType } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const CLASS_NAME = "PLAN FIXTURE 9th";
+// Subject names are unique among active subjects, so the fixture's own copies are prefixed to
+// stay clear of the school's real "Maths", "English", etc.
+const SUBJECT_PREFIX = "PLAN FIXTURE ";
 const YEAR = 2026;
 
 // Column order and per-test max marks, transcribed verbatim from the spreadsheet.
@@ -130,7 +133,7 @@ async function createFixture() {
     for (const s of SUBJECTS) {
         const subject = await prisma.subject.create({
             data: {
-                name: s.name,
+                name: `${SUBJECT_PREFIX}${s.name}`,
                 subjectType: SubjectType.COMPULSORY,
                 maxMarks: s.maxMarks,
             },
