@@ -1,4 +1,4 @@
-import prisma from '../../lib/prisma.js';
+import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { ICreateTest, ISetTestSubjects, IUpdateTest, TestMessages } from './index.js';
 import { TestType } from '@prisma/client';
@@ -70,16 +70,18 @@ class TestService {
       const totalMarks = resolvedSubjects.reduce((sum, s) => sum + s.maxMarks, 0);
 
       // 6️⃣ Create test
-      const createdTest = await tx.test.create({
-        data: {
-          name: payload.name,
-          testType: payload.testType,
-          month: payload.month ?? null,
-          year: payload.year ?? null,
-          totalMarks,
-          classId: classData.id,
-        },
-      });
+      const createdTest = await tx.test
+        .create({
+          data: {
+            name: payload.name,
+            testType: payload.testType,
+            month: payload.month ?? null,
+            year: payload.year ?? null,
+            totalMarks,
+            classId: classData.id,
+          },
+        })
+        .catch(rethrowUniqueViolation(TestMessages.TEST_ALREADY_EXISTS));
 
       // 7️⃣ Create its TestSubject rows — a test can never exist without them
       await tx.testSubject.createMany({
@@ -143,17 +145,19 @@ class TestService {
       throw ApiError.format('', TestMessages.TEST_ALREADY_EXISTS);
     }
 
-    const updatedTest = await prisma.test.update({
-      where: { id: existingTest.id },
-      data: {
-        name: payload.name,
-        testType: payload.testType,
-        month: payload.month,
-        year: payload.year,
-        totalMarks: payload.totalMarks,
-        classId: classId,
-      },
-    });
+    const updatedTest = await prisma.test
+      .update({
+        where: { id: existingTest.id },
+        data: {
+          name: payload.name,
+          testType: payload.testType,
+          month: payload.month,
+          year: payload.year,
+          totalMarks: payload.totalMarks,
+          classId: classId,
+        },
+      })
+      .catch(rethrowUniqueViolation(TestMessages.TEST_ALREADY_EXISTS));
 
     return {
       keyName: 'test',
@@ -218,7 +222,8 @@ class TestService {
       include: {
         class: true,
       },
-      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+      // id breaks ties between tests in the same month
+      orderBy: [{ year: 'desc' }, { month: 'desc' }, { id: 'desc' }],
     });
 
     return {
