@@ -5,7 +5,6 @@ import { StudentSubjectService } from '../../modules/studentSubject/index.js';
 
 class StudentService {
   //Create Student then assign compulsory subjects auto and assign elective subjects which user provided
-  //TODO: FIX create api response should alos return student Class Id's data also instead of just externalId
   async createStudent(payload: ICreateStudent): Promise<IAPISuccessResponse> {
     // Check class existence
     const classEntity = await prisma.class.findFirst({
@@ -61,11 +60,12 @@ class StudentService {
         tx,
       );
 
-      return student;
+      // Re-read with class + subjects so the response matches GET (the UI renders it straight into the table)
+      return tx.student.findUniqueOrThrow({ where: { id: student.id }, include: this.studentInclude });
     });
     return {
       keyName: 'student',
-      student: createdStudent,
+      student: this.formatStudentResponse(createdStudent),
       code: StudentMessages.STUDENT_CREATED_SUCCESSFULLY.code,
       message: StudentMessages.STUDENT_CREATED_SUCCESSFULLY.message,
       success: true,
@@ -137,12 +137,12 @@ class StudentService {
         );
       }
 
-      return updated;
+      return tx.student.findUniqueOrThrow({ where: { id: updated.id }, include: this.studentInclude });
     });
 
     return {
       keyName: 'student',
-      student: updatedStudent,
+      student: this.formatStudentResponse(updatedStudent),
       code: StudentMessages.STUDENT_UPDATED_SUCCESSFULLY.code,
       message: StudentMessages.STUDENT_UPDATED_SUCCESSFULLY.message,
       success: true,
@@ -266,7 +266,6 @@ class StudentService {
   };
 
   private formatStudentResponse = (student: any) => ({
-    id: student.id,
     externalId: student.externalId,
     firstName: student.firstName,
     lastName: student.lastName,
