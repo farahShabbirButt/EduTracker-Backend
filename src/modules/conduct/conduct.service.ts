@@ -1,6 +1,16 @@
 import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { ConductMessages, IUpsertConduct } from './index.js';
+import { Prisma } from '@prisma/client';
+
+// The student is identified by the externalId the caller passed in
+const CONDUCT_PUBLIC_FIELDS = {
+  externalId: true,
+  month: true,
+  year: true,
+  behaviour: true,
+  uniformCleanliness: true,
+} satisfies Prisma.StudentConductSelect;
 
 class ConductService {
   async upsertConduct(studentExternalId: string, payload: IUpsertConduct): Promise<IAPISuccessResponse> {
@@ -18,11 +28,12 @@ class ConductService {
       where: { studentId_month_year: { studentId: student.id, month, year } },
       create: { studentId: student.id, month, year, behaviour, uniformCleanliness, createdBy },
       update: { behaviour, uniformCleanliness, updatedBy },
+      select: CONDUCT_PUBLIC_FIELDS,
     });
 
     return {
       keyName: 'conduct',
-      conduct,
+      conduct: { ...conduct, studentExternalId },
       code: ConductMessages.CONDUCT_UPSERTED_SUCCESSFULLY.code,
       message: ConductMessages.CONDUCT_UPSERTED_SUCCESSFULLY.message,
       success: true,
@@ -40,11 +51,12 @@ class ConductService {
 
     const conduct = await prisma.studentConduct.findFirst({
       where: { studentId: student.id, month, year, deletedAt: null },
+      select: CONDUCT_PUBLIC_FIELDS,
     });
 
     return {
       keyName: 'conduct',
-      conduct: conduct ?? null,
+      conduct: conduct ? { ...conduct, studentExternalId } : null,
       code: ConductMessages.CONDUCT_FETCHED_SUCCESSFULLY.code,
       message: ConductMessages.CONDUCT_FETCHED_SUCCESSFULLY.message,
       success: true,

@@ -19,16 +19,11 @@ class StudentSubjectService {
       },
     });
 
-    const compulsorySubjects: any = [];
-    const electiveSubjects: any = [];
-
-    for (const sc of classSubjects) {
-      if (sc.subject.subjectType === SubjectType.COMPULSORY) compulsorySubjects.push(sc);
-      else if (sc.subject.subjectType === SubjectType.ELECTIVE) electiveSubjects.push(sc);
-    }
+    const compulsorySubjects = classSubjects.filter((sc) => sc.subject.subjectType === SubjectType.COMPULSORY);
+    const electiveSubjects = classSubjects.filter((sc) => sc.subject.subjectType === SubjectType.ELECTIVE);
 
     // Validate elective selection
-    const selectedElectives = electiveSubjects.filter((sc: any) => subjectIds.includes(sc.subject.externalId));
+    const selectedElectives = electiveSubjects.filter((sc) => subjectIds.includes(sc.subject.externalId));
 
     if (selectedElectives.length !== subjectIds.length) {
       throw ApiError.format('', StudentSubjectMessages.INVALID_ELECTIVE_SUBJECTS);

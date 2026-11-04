@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../../common/base/baseController.js';
-import { SubjectService } from './index.js';
+import { IGetAllSubjectsQuery, SubjectService } from './index.js';
 
 class SubjectController extends BaseController {
   create = async (req: Request, res: Response, next: NextFunction) => {
@@ -18,7 +18,7 @@ class SubjectController extends BaseController {
   //TODO: handle pagination later if needed
   getAll = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await SubjectService.getAllSubjects(req.query as any);
+      const result = await SubjectService.getAllSubjects(req.query as IGetAllSubjectsQuery);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
       return next(error);
