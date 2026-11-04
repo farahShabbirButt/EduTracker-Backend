@@ -56,9 +56,9 @@ class StudentScoreService {
     const students = await prisma.student.findMany({
       where: {
         externalId: { in: scores.map((s) => s.studentExternalId) },
-        classId: classData.id,
         isActive: true,
         deletedAt: null,
+        OR: [{ classId: classData.id }, { scores: { some: { testSubjectId: testSubject.id } } }],
       },
     });
     const byExternalId = new Map(students.map((s) => [s.externalId, s.id]));
@@ -127,47 +127,36 @@ class StudentScoreService {
       throw ApiError.format('', StudentScoreMessages.TEST_NOT_FOUND);
     }
 
-    // Validate Subject belongs to Class (via SubjectClass)
-    const subjectClass = await prisma.subjectClass.findFirst({
-      where: {
-        classId: classData.id,
-        subject: {
-          externalId: subjectExternalId,
-          isActive: true,
-          deletedAt: null,
-        },
-      },
-      include: {
-        subject: true,
-      },
-    });
-
-    if (!subjectClass) {
-      throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_FOUND);
-    }
-
-    // Resolve the TestSubject config row — the entry UI needs its per-subject maxMarks,
-    // and scores are now keyed off testSubjectId, not testId + subjectClassId.
+    // The test's own row, so a subject later removed from the class stays markable here
     const testSubject = await prisma.testSubject.findFirst({
-      where: { testId: testData.id, subjectClassId: subjectClass.id, deletedAt: null },
+      where: {
+        testId: testData.id,
+        deletedAt: null,
+        subjectClass: { subject: { externalId: subjectExternalId, isActive: true, deletedAt: null } },
+      },
+      include: { subjectClass: { include: { subject: true } } },
     });
 
     if (!testSubject) {
       throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_IN_TEST);
     }
 
-    // Fetch students assigned to this subject
+    const { subject } = testSubject.subjectClass;
+    const takesSubject = { some: { subjectClass: { subjectId: subject.id } } };
+
+    // Students taking the subject, plus anyone with a mark on it who has since left the class
+    // or the subject: that mark is still on their card, so it must stay visible and fixable.
+    // A cleared mark keeps them listed, so a mistaken clear can be undone.
     const students = await prisma.student.findMany({
       where: {
-        classId: classData.id,
         isActive: true,
         deletedAt: null,
-        studentSubjects: {
-          some: {
-            subjectClassId: subjectClass.id,
-          },
-        },
+        OR: [
+          { classId: classData.id, studentSubjects: takesSubject },
+          { scores: { some: { testSubjectId: testSubject.id } } },
+        ],
       },
+      include: { studentSubjects: { where: { subjectClass: { subjectId: subject.id } }, select: { id: true } } },
       orderBy: {
         rollNumber: 'asc',
       },
@@ -196,6 +185,7 @@ class StudentScoreService {
       fatherName: student.fatherName,
       rollNumber: student.rollNumber,
       marksObtained: scoreMap.get(student.id) ?? null,
+      leftSubject: student.classId !== classData.id || student.studentSubjects.length === 0,
     }));
 
     // Return structured response
@@ -215,8 +205,8 @@ class StudentScoreService {
           year: testData.year,
         },
         subject: {
-          externalId: subjectClass.subject.externalId,
-          name: subjectClass.subject.name,
+          externalId: subject.externalId,
+          name: subject.name,
         },
         students: formattedStudents,
       },

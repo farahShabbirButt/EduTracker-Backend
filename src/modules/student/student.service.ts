@@ -127,6 +127,7 @@ class StudentService {
             contactNo: payload.contactNo,
             ...(classId !== student.classId && {
               classId,
+              classSince: new Date(),
             }),
           },
         })

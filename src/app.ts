@@ -13,6 +13,7 @@ import { StudentScoreRoutes } from './modules/studentScore/index.js';
 import { GradeRoutes } from './modules/grade/index.js';
 import { ConductRoutes } from './modules/conduct/index.js';
 import { ReportRoutes } from './modules/report/index.js';
+import { InstituteRoutes } from './modules/institute/index.js';
 import { AuthRoutes } from './modules/auth/index.js';
 import { notFoundMiddleware } from './middleware/notFound.middleware.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
@@ -34,6 +35,7 @@ const STUDENT_SCORE = BASE + '/student-score';
 const GRADE_SCALE = BASE + '/grade-scale';
 const CONDUCT = BASE + '/conduct';
 const REPORT = BASE + '/report';
+const INSTITUTE = BASE + '/institute';
 const AUTH = BASE + '/auth';
 
 app.use((req, _res, next) => {
@@ -66,6 +68,7 @@ app.use(STUDENT_SCORE, authMiddleware, StudentScoreRoutes);
 app.use(GRADE_SCALE, authMiddleware, GradeRoutes);
 app.use(CONDUCT, authMiddleware, ConductRoutes);
 app.use(REPORT, authMiddleware, ReportRoutes);
+app.use(INSTITUTE, authMiddleware, InstituteRoutes);
 
 // 404 + error handlers — must be registered AFTER all routes
 app.use(notFoundMiddleware);

@@ -43,11 +43,11 @@ const INSTITUTE = {
 // Idempotent: creates the Institute row if one with this name doesn't already exist.
 async function seedInstitute() {
     const existing = await prisma.institute.findFirst({
-        where: { name: INSTITUTE.name },
+        where: { deletedAt: null },
     });
     if (existing) {
         console.info(
-            `✅ Institute already exists: ${INSTITUTE.name} — skipping`
+            `✅ Institute already exists — skipping`
         );
         return;
     }

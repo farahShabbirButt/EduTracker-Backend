@@ -27,7 +27,7 @@ const TEST_PUBLIC_FIELDS = {
 
 // Marks that still count. A deleted student's marks are off every card and can't be cleared,
 // so they must not block changing a test. A student moved to another class keeps counting:
-// moving them back brings those marks back.
+// the mark stays on their card, and the marks sheet still lists them so it can be fixed.
 const LIVE_SCORES = {
   deletedAt: null,
   student: { isActive: true, deletedAt: null },
@@ -162,8 +162,8 @@ class TestService {
       classId = classData.id;
     }
 
-    // The card finds a test through its class, so moving a marked test would take it off the
-    // old class's cards and print 0 on the new class's.
+    // A test with marks belongs to the class that sat it: moving it would put those marks
+    // under the wrong class on the card and leave the new class's students with gaps.
     if (classId !== existingTest.classId) {
       const markCount = await prisma.studentScore.count({
         where: { ...LIVE_SCORES, testSubject: { testId: existingTest.id } },
@@ -380,10 +380,32 @@ class TestService {
     test: { id: number; classId: number },
     subjects: ITestSubjectInput[],
   ): Promise<void> {
-    // Resolve each subject to a SubjectClass row for THIS class
+    // ALL TestSubject rows ever created for this test, active or soft-deleted. We need the
+    // soft-deleted ones too: @@unique([testId, subjectClassId]) means re-adding a subject that
+    // was previously removed from this test must resurrect its old row, not INSERT a duplicate.
+    const allTestSubjects = await tx.testSubject.findMany({
+      where: { testId: test.id },
+      include: { scores: { where: LIVE_SCORES }, subjectClass: { include: { subject: true } } },
+    });
+
+    // A subject already on this test stays on its own row, even if it has since been removed
+    // from the class. Only a subject new to the test must be assigned to the class. Rows of
+    // another class don't count: the test has just been moved.
+    const onTestBySubject = new Map(
+      allTestSubjects
+        .filter((ts) => ts.deletedAt === null && ts.subjectClass.classId === test.classId)
+        .map((ts) => [ts.subjectClass.subject.externalId, ts.subjectClassId]),
+    );
+
     const resolvedSubjects: { subjectClassId: number; maxMarks: number }[] = [];
 
     for (const item of subjects) {
+      const onTest = onTestBySubject.get(item.subjectExternalId);
+      if (onTest !== undefined) {
+        resolvedSubjects.push({ subjectClassId: onTest, maxMarks: item.maxMarks });
+        continue;
+      }
+
       const subjectClass = await tx.subjectClass.findFirst({
         where: {
           classId: test.classId,
@@ -402,14 +424,6 @@ class TestService {
 
       resolvedSubjects.push({ subjectClassId: subjectClass.id, maxMarks: item.maxMarks });
     }
-
-    // ALL TestSubject rows ever created for this test, active or soft-deleted. We need the
-    // soft-deleted ones too: @@unique([testId, subjectClassId]) means re-adding a subject that
-    // was previously removed from this test must resurrect its old row, not INSERT a duplicate.
-    const allTestSubjects = await tx.testSubject.findMany({
-      where: { testId: test.id },
-      include: { scores: { where: LIVE_SCORES }, subjectClass: { include: { subject: true } } },
-    });
 
     const activeTestSubjects = allTestSubjects.filter((ts) => ts.deletedAt === null);
     const incomingSubjectClassIds = resolvedSubjects.map((s) => s.subjectClassId);

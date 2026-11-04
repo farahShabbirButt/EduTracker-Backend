@@ -15,8 +15,8 @@ export const createTestValidation = z.object({
       error: 'Test Type must be either MONTHLY or SESSION',
     }),
 
-    month: z.number('Valid Month is required between 1 to 12').min(1).max(12),
-    year: z.number('Valid Year is required between 2000 to 2100').min(2000).max(2100),
+    month: z.number('Valid Month is required between 1 to 12').int().min(1).max(12),
+    year: z.number('Valid Year is required between 2000 to 2100').int().min(2000).max(2100),
 
     totalMarks: z.number('Totals Marks should be a valid number greater than 0').positive(),
 
@@ -58,8 +58,8 @@ export const updateTestValidation = z.object({
 
     testType: z.enum(['MONTHLY', 'SESSION']).optional(),
 
-    month: z.number('Valid Month is required between 1 to 12').min(1).max(12).optional(),
-    year: z.number('Valid Year is required between 2000 to 2100').min(2000).max(2100).optional(),
+    month: z.number('Valid Month is required between 1 to 12').int().min(1).max(12).optional(),
+    year: z.number('Valid Year is required between 2000 to 2100').int().min(2000).max(2100).optional(),
 
     totalMarks: z.number('Totals Marks should be a valid number greater than 0').positive().optional(),
 

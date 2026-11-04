@@ -1,154 +1,204 @@
 import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { GradeService } from '../grade/index.js';
-import { IReportCard, IReportCardPosition, IReportCardRow, ReportMessages, ReportMode } from './index.js';
+import {
+  IReportCard,
+  IReportCardPosition,
+  IReportCardRow,
+  IReportPeriod,
+  ReportMessages,
+  ReportMode,
+} from './index.js';
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
-const testSubjectKey = (testId: number, subjectClassId: number): string => `${testId}:${subjectClassId}`;
+const monthIndex = ({ month, year }: { month: number; year: number }): number => year * 12 + month;
+const joinedMonthIndex = (date: Date): number => monthIndex({ month: date.getMonth() + 1, year: date.getFullYear() });
+
+// A test from before the student joined the class isn't theirs to sit, unless they have a mark
+// on it. The month is all a test records, so a test in the joining month counts.
+const owesTest = (classSince: Date, test: { month: number; year: number }, hasMarkOnTest: boolean): boolean =>
+  hasMarkOnTest || monthIndex(test) >= joinedMonthIndex(classSince);
+
+// The group ranked for a class, the same on every card: its current students, plus anyone who
+// only left after the period ended. A current student can have joined "after" a test whose marks
+// were entered later, so their date alone can't rule them out.
+const inClassAtPeriodEnd = (
+  student: { classId: number; classSince: Date },
+  classId: number,
+  period: IReportPeriod,
+): boolean => student.classId === classId || joinedMonthIndex(student.classSince) > monthIndex(period.to);
+
+// Tests and conduct both record a month and a year
+const inPeriod = ({ from, to }: IReportPeriod) => ({
+  AND: [
+    { OR: [{ year: { gt: from.year } }, { year: from.year, month: { gte: from.month } }] },
+    { OR: [{ year: { lt: to.year } }, { year: to.year, month: { lte: to.month } }] },
+  ],
+});
 
 class ReportService {
-  async getStudentReport(studentExternalId: string, mode: ReportMode, year: number): Promise<IAPISuccessResponse> {
+  async getStudentReport(
+    studentExternalId: string,
+    mode: ReportMode,
+    period: IReportPeriod,
+  ): Promise<IAPISuccessResponse> {
     const student = await prisma.student.findUnique({
       where: { externalId: studentExternalId, isActive: true, deletedAt: null },
-      include: { class: true },
+      include: {
+        class: true,
+        studentSubjects: { select: { subjectClass: { select: { subjectId: true } } } },
+      },
     });
 
     if (!student) {
       throw ApiError.format('', ReportMessages.STUDENT_NOT_FOUND);
     }
 
-    const institute = await prisma.institute.findFirst({ where: { deletedAt: null } });
+    const institute = await prisma.institute.findFirst({ where: { deletedAt: null }, orderBy: { id: 'asc' } });
 
     if (!institute) {
       throw ApiError.format('', ReportMessages.INSTITUTE_NOT_CONFIGURED);
     }
 
+    const studentMark = { studentId: student.id, deletedAt: null };
+
+    // The current class's tests, plus any other test the student has a mark on, so marks
+    // earned before a class move or promotion stay on the card.
     const tests = await prisma.test.findMany({
-      where: { classId: student.classId, testType: 'MONTHLY', year, isActive: true, deletedAt: null },
-      orderBy: [{ month: 'asc' }, { id: 'asc' }],
+      where: {
+        testType: 'MONTHLY',
+        ...inPeriod(period),
+        isActive: true,
+        deletedAt: null,
+        OR: [
+          { classId: student.classId },
+          { testSubjects: { some: { deletedAt: null, scores: { some: studentMark } } } },
+        ],
+      },
+      include: {
+        class: { select: { name: true } },
+        testSubjects: {
+          where: { deletedAt: null },
+          include: { scores: { where: studentMark }, subjectClass: { include: { subject: true } } },
+        },
+      },
+      orderBy: [{ year: 'asc' }, { month: 'asc' }, { id: 'asc' }],
     });
 
-    const testIds = tests.map((test) => test.id);
+    const takenSubjectIds = new Set(student.studentSubjects.map((ss) => ss.subjectClass.subjectId));
 
-    const testSubjects = testIds.length
-      ? await prisma.testSubject.findMany({
-          where: { testId: { in: testIds }, deletedAt: null },
-          include: { subjectClass: { include: { subject: true } } },
-        })
-      : [];
-
-    // Columns come from what the tests actually examined, not from the class's current
-    // active SubjectClass list. A card for a past year must keep showing a subject the
-    // student sat even if that SubjectClass has since been soft-deleted from the class —
-    // otherwise its TestSubject (and every score attached to it) silently vanishes from
-    // the printed record. Dedupe by subjectClassId, sorted ascending for a stable column
-    // order shared by every student in the class.
-    const subjectClassById = new Map<number, (typeof testSubjects)[number]['subjectClass']>();
-    for (const ts of testSubjects) {
-      if (!subjectClassById.has(ts.subjectClassId)) {
-        subjectClassById.set(ts.subjectClassId, ts.subjectClass);
-      }
-    }
-    const subjectClasses = Array.from(subjectClassById.values()).sort((a, b) => a.id - b.id);
-
-    const testSubjectByKey = new Map(testSubjects.map((ts) => [testSubjectKey(ts.testId, ts.subjectClassId), ts]));
-    const testSubjectIds = testSubjects.map((ts) => ts.id);
-
-    const scores = testSubjectIds.length
-      ? await prisma.studentScore.findMany({
-          where: { studentId: student.id, testSubjectId: { in: testSubjectIds }, deletedAt: null },
-        })
-      : [];
-
-    const scoreByTestSubjectId = new Map(scores.map((score) => [score.testSubjectId, score.marksObtained]));
-
+    // Keyed by subject, not SubjectClass: Maths in the old class and the new one is one column
+    const subjectById = new Map<number, { externalId: string; name: string }>();
     const rows: IReportCardRow[] = [];
+    const missingMarks: IReportCard['missingMarks'] = [];
+    const cardTests: typeof tests = [];
 
     for (const test of tests) {
-      const marks: Record<string, { obtained: number; max: number }> = {};
+      const marks: IReportCardRow['marks'] = {};
       let total = 0;
       let maxTotal = 0;
+      const hasMarkOnTest = test.testSubjects.some((testSubject) => testSubject.scores.length > 0);
 
-      for (const subjectClass of subjectClasses) {
-        const testSubject = testSubjectByKey.get(testSubjectKey(test.id, subjectClass.id));
+      for (const testSubject of test.testSubjects) {
+        const { subject } = testSubject.subjectClass;
+        const obtained = testSubject.scores[0]?.marksObtained ?? null;
+        const expected =
+          test.classId === student.classId &&
+          takenSubjectIds.has(subject.id) &&
+          owesTest(student.classSince, test, hasMarkOnTest);
 
-        // No TestSubject row for this (test, subject) pair means the subject was not
-        // examined in this test — omit the key entirely so the card renders a blank cell.
-        if (!testSubject) {
+        // No mark and none owed, such as an elective they don't do. No cell at all.
+        if (obtained === null && !expected) {
           continue;
         }
 
-        const obtained = scoreByTestSubjectId.get(testSubject.id) ?? 0;
-        marks[subjectClass.subject.externalId] = { obtained, max: testSubject.maxMarks };
-        total += obtained;
-        maxTotal += testSubject.maxMarks;
+        subjectById.set(subject.id, { externalId: subject.externalId, name: subject.name });
+        marks[subject.externalId] = { obtained, max: testSubject.maxMarks };
+
+        if (obtained === null) {
+          missingMarks.push({ testName: test.name, subjectName: subject.name });
+        } else {
+          total += obtained;
+          maxTotal += testSubject.maxMarks;
+        }
       }
 
-      const percentage = maxTotal ? round2((total / maxTotal) * 100) : 0;
-      const { grade } = await GradeService.resolveGradeForPercentage(percentage);
+      if (Object.keys(marks).length === 0) {
+        continue;
+      }
 
-      rows.push({ testName: test.name, marks, total, maxTotal, percentage, grade });
+      const percentage = maxTotal ? round2((total / maxTotal) * 100) : null;
+      const grade = percentage === null ? null : (await GradeService.resolveGradeForPercentage(percentage)).grade;
+
+      cardTests.push(test);
+      rows.push({ testExternalId: test.externalId, testName: test.name, marks, total, maxTotal, percentage, grade });
     }
 
-    const subjectTotals: Record<string, { obtained: number; max: number }> = {};
+    // Sorted by subject, so every student in a class gets the same column order
+    const subjects = Array.from(subjectById.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([, subject]) => subject);
 
-    for (const subjectClass of subjectClasses) {
-      const key = subjectClass.subject.externalId;
+    const subjectTotals: IReportCard['subjectTotals'] = {};
+
+    for (const { externalId } of subjects) {
       let obtained = 0;
       let max = 0;
 
       for (const row of rows) {
-        const cell = row.marks[key];
-        if (cell) {
+        const cell = row.marks[externalId];
+        if (cell && cell.obtained !== null) {
           obtained += cell.obtained;
           max += cell.max;
         }
       }
 
-      subjectTotals[key] = { obtained, max };
+      subjectTotals[externalId] = { obtained, max };
     }
 
     const obtainedMarks = rows.reduce((sum, row) => sum + row.total, 0);
     const totalMarks = rows.reduce((sum, row) => sum + row.maxTotal, 0);
-    const overallPercentage = totalMarks ? round2((obtainedMarks / totalMarks) * 100) : 0;
-    const { grade: overallGrade, remarks } = await GradeService.resolveGradeForPercentage(overallPercentage);
-    const status: 'PASS' | 'FAIL' = overallGrade === 'F' ? 'FAIL' : 'PASS';
+    const overallPercentage = totalMarks ? round2((obtainedMarks / totalMarks) * 100) : null;
+    const overallResult =
+      overallPercentage === null ? null : await GradeService.resolveGradeForPercentage(overallPercentage);
 
-    // A monthly card spans the whole year while conduct is recorded per month — take the
-    // most recent month's conduct within the requested year as the card's snapshot.
+    // Conduct is recorded per month, so the card shows the latest month in its period
     const conductRow = await prisma.studentConduct.findFirst({
-      where: { studentId: student.id, year, deletedAt: null },
-      orderBy: [{ month: 'desc' }, { id: 'desc' }],
+      where: { studentId: student.id, deletedAt: null, ...inPeriod(period) },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }, { id: 'desc' }],
     });
 
-    const position = await this.computePosition(student.id, student.classId, testSubjectIds, totalMarks);
+    const cardClasses = [...new Set(cardTests.map((test) => test.class.name))];
 
     const report: IReportCard = {
       institute: { name: institute.name, address: institute.address, phone: institute.phone },
       student: {
         name: `${student.firstName} ${student.lastName}`.trim(),
         fatherName: student.fatherName,
-        class: student.class.name,
+        // The class the card's tests were taken in, which differs from today's after a promotion
+        class: cardClasses.length ? cardClasses.join(' / ') : student.class.name,
         rollNumber: student.rollNumber,
       },
       title: mode === 'MONTHLY' ? 'MONTHLY ASSESSMENT REPORT' : 'ASSESSMENT REPORT',
-      subjects: subjectClasses.map((sc) => ({ externalId: sc.subject.externalId, name: sc.subject.name })),
+      period,
+      subjects,
       rows,
       subjectTotals,
       overall: {
         obtainedMarks,
         totalMarks,
         percentage: overallPercentage,
-        grade: overallGrade,
-        status,
-        remarks,
+        grade: overallResult?.grade ?? null,
+        status: overallResult ? (overallResult.grade === 'F' ? 'FAIL' : 'PASS') : null,
+        remarks: overallResult?.remarks ?? '',
       },
       conduct: {
         behaviour: conductRow?.behaviour ?? null,
         uniformCleanliness: conductRow?.uniformCleanliness ?? null,
       },
-      position,
+      position: await this.computePosition(student.id, period, cardTests),
+      missingMarks,
     };
 
     return {
@@ -160,62 +210,90 @@ class ReportService {
     };
   }
 
-  // Ranks every active student in the class against the same set of TestSubjects (the same
-  // tests, same denominator, regardless of which electives each student actually takes — see
-  // the row-building rule above). With no other students to compare against, or no marks
-  // configured for the year at all, a ranking is meaningless, so we return null rather than
-  // a trivial "1 of 1" / all-tied position.
+  // Ranks everyone in the class at the end of the period by the same percentage each card
+  // prints: marks entered, out of the max of those subjects, over all the class's tests.
+  // A card spanning two classes has no fair group to rank against, so it gets no position.
   private async computePosition(
     studentId: number,
-    classId: number,
-    testSubjectIds: number[],
-    totalMarks: number,
+    period: IReportPeriod,
+    cardTests: { classId: number }[],
   ): Promise<IReportCardPosition | null> {
-    const classmates = await prisma.student.findMany({
-      where: { classId, isActive: true, deletedAt: null },
-      select: { id: true },
-    });
+    const classIds = new Set(cardTests.map((test) => test.classId));
 
-    if (classmates.length <= 1 || totalMarks === 0) {
+    if (classIds.size !== 1) {
       return null;
     }
 
-    const allScores = testSubjectIds.length
-      ? await prisma.studentScore.findMany({
-          where: {
-            studentId: { in: classmates.map((c) => c.id) },
-            testSubjectId: { in: testSubjectIds },
-            deletedAt: null,
+    const [classId] = classIds;
+
+    const testSubjects = await prisma.testSubject.findMany({
+      where: {
+        deletedAt: null,
+        test: { classId, testType: 'MONTHLY', isActive: true, deletedAt: null, ...inPeriod(period) },
+      },
+      select: {
+        maxMarks: true,
+        test: { select: { id: true, month: true, year: true } },
+        subjectClass: { select: { subjectId: true } },
+        scores: {
+          where: { deletedAt: null, student: { isActive: true, deletedAt: null } },
+          select: {
+            studentId: true,
+            marksObtained: true,
+            student: { select: { classId: true, classSince: true } },
           },
-        })
-      : [];
+        },
+      },
+    });
 
-    const obtainedByStudentId = new Map<number, number>(classmates.map((c) => [c.id, 0]));
+    const classmates = await prisma.student.findMany({
+      where: { classId, isActive: true, deletedAt: null },
+      select: {
+        id: true,
+        classSince: true,
+        studentSubjects: { select: { subjectClass: { select: { subjectId: true } } } },
+      },
+    });
 
-    for (const score of allScores) {
-      obtainedByStudentId.set(score.studentId, (obtainedByStudentId.get(score.studentId) ?? 0) + score.marksObtained);
-    }
+    const totals = new Map<number, { obtained: number; max: number }>();
+    const markedOnTest = new Set<string>();
 
-    const ranked = classmates
-      .map((c) => ({
-        studentId: c.id,
-        percentage: round2(((obtainedByStudentId.get(c.id) ?? 0) / totalMarks) * 100),
-      }))
-      .sort((a, b) => b.percentage - a.percentage);
+    for (const testSubject of testSubjects) {
+      for (const score of testSubject.scores) {
+        markedOnTest.add(`${score.studentId}:${testSubject.test.id}`);
 
-    let rank = 0;
-    let previousPercentage: number | null = null;
-    const rankByStudentId = new Map<number, number>();
-
-    for (const entry of ranked) {
-      if (previousPercentage === null || entry.percentage < previousPercentage) {
-        rank += 1;
-        previousPercentage = entry.percentage;
+        if (inClassAtPeriodEnd(score.student, classId, period)) {
+          const total = totals.get(score.studentId) ?? { obtained: 0, max: 0 };
+          total.obtained += score.marksObtained;
+          total.max += testSubject.maxMarks;
+          totals.set(score.studentId, total);
+        }
       }
-      rankByStudentId.set(entry.studentId, rank);
     }
 
-    return { rank: rankByStudentId.get(studentId)!, outOf: classmates.length };
+    if (totals.size <= 1 || !totals.has(studentId)) {
+      return null;
+    }
+
+    const percentages = Array.from(totals.values(), ({ obtained, max }) => round2((obtained / max) * 100));
+    const own = totals.get(studentId)!;
+    const ownPercentage = round2((own.obtained / own.max) * 100);
+
+    const provisional = classmates.some((classmate) => {
+      const taken = new Set(classmate.studentSubjects.map((ss) => ss.subjectClass.subjectId));
+      return testSubjects.some(
+        ({ test, subjectClass, scores }) =>
+          taken.has(subjectClass.subjectId) &&
+          owesTest(classmate.classSince, test, markedOnTest.has(`${classmate.id}:${test.id}`)) &&
+          !scores.some((score) => score.studentId === classmate.id),
+      );
+    });
+
+    return {
+      rank: new Set(percentages.filter((percentage) => percentage > ownPercentage)).size + 1,
+      outOf: totals.size,
+      provisional,
+    };
   }
 }
 

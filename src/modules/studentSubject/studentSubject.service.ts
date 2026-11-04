@@ -28,20 +28,33 @@ class StudentSubjectService {
     if (selectedElectives.length !== subjectIds.length) {
       throw ApiError.format('', StudentSubjectMessages.INVALID_ELECTIVE_SUBJECTS);
     }
-    // Remove existing assignments
+    // Clears the old class and this class's electives. Compulsory enrolments and any on a
+    // subject removed from the class stay, so saving a student can't take them off a marks sheet.
     if (replaceExisting) {
       await tx.studentSubject.deleteMany({
         where: {
           studentId,
+          OR: [
+            { subjectClass: { classId: { not: classId } } },
+            { subjectClass: { classId, deletedAt: null, subject: { subjectType: SubjectType.ELECTIVE } } },
+          ],
         },
       });
     }
 
+    const held = await tx.studentSubject.findMany({
+      where: { studentId },
+      select: { subjectClass: { select: { subjectId: true } } },
+    });
+    const heldSubjectIds = new Set(held.map((ss) => ss.subjectClass.subjectId));
+
     // Prepare new assignments
-    const studentSubjectsData = [...compulsorySubjects, ...selectedElectives].map((sc) => ({
-      studentId,
-      subjectClassId: sc.id,
-    }));
+    const studentSubjectsData = [...compulsorySubjects, ...selectedElectives]
+      .filter((sc) => !heldSubjectIds.has(sc.subjectId))
+      .map((sc) => ({
+        studentId,
+        subjectClassId: sc.id,
+      }));
 
     // Assign subjects
     if (studentSubjectsData.length) {
