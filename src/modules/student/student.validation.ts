@@ -10,13 +10,13 @@ export const createStudentValidation = z.object({
       .max(50)
       .transform((v) => v.trim()),
 
+    // Optional: many students have no last name (the school's own cards read e.g. "Qasim s/o Amjad").
+    // Stored as '' because the column is non-null; the report trims the joined name.
     lastName: z
-      .string({
-        error: (iss) => (iss.input === undefined ? 'Last name is required.' : 'Last name should be string.'),
-      })
-      .min(1, 'Last name is required')
-      .max(50)
-      .transform((v) => v.trim()),
+      .string('Last name should be string.')
+      .max(50, 'Last name must be at most 50 characters')
+      .transform((v) => v.trim())
+      .default(''),
     fatherName: z
       .string({
         error: (iss) => (iss.input === undefined ? 'Father name is required.' : 'Father name should be string.'),
@@ -51,7 +51,7 @@ export const updateStudentValidation = z.object({
   }),
   body: z.object({
     firstName: z.string().min(1).max(50).optional(),
-    lastName: z.string().min(1).max(50).optional(),
+    lastName: z.string().max(50).optional(), // may be '' to clear it
     fatherName: z.string().min(1).max(50).optional(),
 
     email: z.string().email().optional(),
