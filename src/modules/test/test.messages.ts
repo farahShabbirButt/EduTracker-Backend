@@ -79,6 +79,16 @@ export const TEST_SUBJECT_HAS_SCORES = Object.freeze({
   code: StatusCodes.CONFLICT,
 });
 
+export const TEST_CLASS_LOCKED = Object.freeze({
+  message: "Can't change the class of a test that already has marks entered",
+  code: StatusCodes.CONFLICT,
+});
+
+export const MAX_MARKS_BELOW_SCORES = Object.freeze({
+  message: "Max marks can't be lower than a mark already entered",
+  code: StatusCodes.CONFLICT,
+});
+
 export const TEST_SUBJECTS_FETCHED_SUCCESSFULLY = Object.freeze({
   message: 'Test subjects fetched successfully',
   code: StatusCodes.OK,

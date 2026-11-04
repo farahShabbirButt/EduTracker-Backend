@@ -64,6 +64,16 @@ export const updateTestValidation = z.object({
     totalMarks: z.number('Totals Marks should be a valid number greater than 0').positive().optional(),
 
     classExternalId: z.uuid('Class is required').optional(),
+
+    subjects: z
+      .array(
+        z.object({
+          subjectExternalId: z.uuid('Invalid subject id'),
+          maxMarks: z.number('Max marks must be a number').int().positive(),
+        }),
+      )
+      .min(1, 'A test must include at least one subject')
+      .optional(),
   }),
 });
 export const deleteTestValidation = z.object({

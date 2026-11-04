@@ -9,7 +9,8 @@ export const marksEntryValidation = z.object({
     scores: z.array(
       z.object({
         studentExternalId: z.uuid('Student Id is required.Invalid UUID'),
-        marksObtained: z.number('Obtained marks should be number greater than 0').min(0),
+        // null clears a saved mark
+        marksObtained: z.number('Obtained marks should be number greater than 0').min(0).nullable(),
       }),
     ),
   }),
