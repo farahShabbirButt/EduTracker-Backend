@@ -3,7 +3,7 @@ import { ApiError } from '../../common/responses/index.js';
 import { SubjectClassMessages, ICreateSubjectClass } from './index.js';
 import { SubjectMessages } from '../../modules/subject/index.js';
 import { ClassMessages } from '../../modules/class/index.js';
-import { SubjectType } from '@prisma/client';
+import { Prisma, SubjectType } from '@prisma/client';
 
 class SubjectClassService {
   async assignSubjectsToClass(payload: ICreateSubjectClass): Promise<IAPISuccessResponse> {
@@ -66,16 +66,33 @@ class SubjectClassService {
         });
       }
 
+      // A subject assigned here before gets its old link back, with its tests and enrolments
+      const removedLinks = await tx.subjectClass.findMany({
+        where: { classId: classEntity.id, subjectId: { in: toAdd }, deletedAt: { not: null } },
+        orderBy: { id: 'asc' },
+      });
+      const linkToRestore = new Map(removedLinks.map((link) => [link.subjectId, link.id]));
+
+      if (linkToRestore.size > 0) {
+        await tx.subjectClass.updateMany({
+          where: { id: { in: [...linkToRestore.values()] } },
+          data: { deletedAt: null, updatedBy: payload.createdBy ?? null },
+        });
+      }
+
       // Create new mappings
-      if (toAdd.length > 0) {
+      const toCreate = toAdd.filter((subjectId) => !linkToRestore.has(subjectId));
+      if (toCreate.length > 0) {
         await tx.subjectClass.createMany({
-          data: toAdd.map((subjectId) => ({
+          data: toCreate.map((subjectId) => ({
             classId: classEntity.id,
             subjectId,
             createdBy: payload.createdBy ?? null,
           })),
         });
       }
+
+      await this.enrolClassInCompulsorySubjects(tx, classEntity.id);
 
       return {
         keyName: 'result',
@@ -84,6 +101,35 @@ class SubjectClassService {
         message: SubjectClassMessages.SUBJECTS_ASSIGNED_SUCCESSFULLY.message,
       };
     });
+  }
+
+  // Students are enrolled per subject, so one who joined before the subject was assigned isn't
+  // missing from its marks sheet. Electives are left to the student's own choice.
+  private async enrolClassInCompulsorySubjects(tx: Prisma.TransactionClient, classId: number): Promise<void> {
+    const compulsoryLinks = await tx.subjectClass.findMany({
+      where: {
+        classId,
+        deletedAt: null,
+        subject: { subjectType: SubjectType.COMPULSORY, isActive: true, deletedAt: null },
+      },
+      select: { id: true, subjectId: true },
+    });
+
+    const students = await tx.student.findMany({
+      where: { classId, isActive: true, deletedAt: null },
+      select: { id: true, studentSubjects: { select: { subjectClass: { select: { subjectId: true } } } } },
+    });
+
+    const missing = students.flatMap((student) => {
+      const taken = new Set(student.studentSubjects.map((ss) => ss.subjectClass.subjectId));
+      return compulsoryLinks
+        .filter((link) => !taken.has(link.subjectId))
+        .map((link) => ({ studentId: student.id, subjectClassId: link.id }));
+    });
+
+    if (missing.length > 0) {
+      await tx.studentSubject.createMany({ data: missing });
+    }
   }
 
   //dont delete all assignments

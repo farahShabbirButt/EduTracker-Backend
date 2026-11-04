@@ -43,8 +43,8 @@ model Class {
 }
 
 model Student {
-  id         Int     @id @default(autoincrement())
-  externalId String  @unique @default(uuid())
+  id         Int      @id @default(autoincrement())
+  externalId String   @unique @default(uuid())
   firstName  String
   lastName   String
   fatherName String
@@ -52,7 +52,9 @@ model Student {
   contactNo  String?
   rollNumber String
   classId    Int
-  isActive   Boolean @default(true)
+  // Tests of this class from before this date are not owed
+  classSince DateTime @default(now())
+  isActive   Boolean  @default(true)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -191,11 +193,13 @@ model StudentConduct {
 }
 
 model Institute {
-  id         Int    @id @default(autoincrement())
-  externalId String @unique @default(uuid())
-  name       String
-  address    String
-  phone      String
+  id                   Int    @id @default(autoincrement())
+  externalId           String @unique @default(uuid())
+  name                 String
+  address              String
+  phone                String
+  // 1 to 12. Reports fill their From and To months from this.
+  schoolYearStartMonth Int    @default(1)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -209,7 +213,7 @@ model StudentScore {
   externalId    String @unique @default(uuid())
   studentId     Int
   testSubjectId Int
-  marksObtained Int
+  marksObtained Float
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

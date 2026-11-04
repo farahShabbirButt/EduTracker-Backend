@@ -40,7 +40,6 @@ export const createStudentValidation = z.object({
     }),
     electiveSubjectIds: z
       .array(z.uuid('Each Subject Id must be a valid UUID'), 'Subject Ids list is required')
-      .min(1, 'At least one subject must be selected')
       .refine((ids) => new Set(ids).size === ids.length, { message: 'Duplicate Subject Ids are not allowed' })
       .optional(),
   }),
