@@ -1,6 +1,18 @@
 import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { GradeMessages, createGradeScaleMapper, ICreateGradeScale, IUpdateGradeScale } from './index.js';
+import { Prisma } from '@prisma/client';
+
+// Internal id and audit columns stay in the service layer
+const GRADE_SCALE_PUBLIC_FIELDS = {
+  externalId: true,
+  minPercentage: true,
+  maxPercentage: true,
+  grade: true,
+  remarks: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.GradeScaleSelect;
 
 class GradeService {
   async assertNoOverlap(minPercentage: number, maxPercentage: number, excludeId?: number): Promise<void> {
@@ -24,6 +36,7 @@ class GradeService {
     const gradeScaleData = createGradeScaleMapper(payload);
     const createdGradeScale = await prisma.gradeScale.create({
       data: gradeScaleData,
+      select: GRADE_SCALE_PUBLIC_FIELDS,
     });
 
     return {
@@ -41,6 +54,7 @@ class GradeService {
         deletedAt: null,
       },
       orderBy: { minPercentage: 'desc' },
+      select: GRADE_SCALE_PUBLIC_FIELDS,
     });
 
     return {
@@ -54,6 +68,7 @@ class GradeService {
   async getGradeScaleById(externalId: string): Promise<IAPISuccessResponse> {
     const gradeScale = await prisma.gradeScale.findFirst({
       where: { externalId, deletedAt: null },
+      select: GRADE_SCALE_PUBLIC_FIELDS,
     });
 
     if (!gradeScale) {
@@ -85,6 +100,7 @@ class GradeService {
     const updatedGradeScale = await prisma.gradeScale.update({
       where: { id: gradeScale.id },
       data: { ...payload, updatedBy: payload.updatedBy ?? null },
+      select: GRADE_SCALE_PUBLIC_FIELDS,
     });
 
     return {

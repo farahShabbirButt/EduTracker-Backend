@@ -1,7 +1,22 @@
 import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
-import { ICreateTest, ISetTestSubjects, IUpdateTest, TestMessages } from './index.js';
-import { TestType } from '@prisma/client';
+import { ICreateTest, IGetAllTestsQuery, ISetTestSubjects, IUpdateTest, TestMessages } from './index.js';
+import { Prisma, TestType } from '@prisma/client';
+
+// What every test response carries. The Tests table and the edit form both read `class`,
+// so create and update must return it too, not just the list.
+const TEST_PUBLIC_FIELDS = {
+  externalId: true,
+  name: true,
+  testType: true,
+  month: true,
+  year: true,
+  totalMarks: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+  class: { select: { externalId: true, name: true } },
+} satisfies Prisma.TestSelect;
 
 class TestService {
   async createTest(payload: ICreateTest): Promise<IAPISuccessResponse> {
@@ -93,9 +108,14 @@ class TestService {
         })),
       });
 
+      const test = await tx.test.findUniqueOrThrow({
+        where: { id: createdTest.id },
+        select: TEST_PUBLIC_FIELDS,
+      });
+
       return {
         keyName: 'test',
-        test: createdTest,
+        test,
         code: TestMessages.TEST_CREATED_SUCCESSFULLY.code,
         message: TestMessages.TEST_CREATED_SUCCESSFULLY.message,
         success: true,
@@ -127,15 +147,16 @@ class TestService {
       classId = classData.id;
     }
 
-    // Duplicate check (exclude current test)
+    // Duplicate check (exclude current test). Fields left out of the payload keep their saved
+    // values: Prisma ignores `undefined`, which would otherwise match any test in the class.
     const duplicate = await prisma.test.findFirst({
       where: {
         id: { not: existingTest.id },
         classId: classId,
-        name: payload.name,
-        month: payload.month,
-        year: payload.year,
-        testType: payload.testType,
+        name: payload.name ?? existingTest.name,
+        month: payload.month ?? existingTest.month,
+        year: payload.year ?? existingTest.year,
+        testType: payload.testType ?? existingTest.testType,
         isActive: true,
         deletedAt: null,
       },
@@ -156,6 +177,7 @@ class TestService {
           totalMarks: payload.totalMarks,
           classId: classId,
         },
+        select: TEST_PUBLIC_FIELDS,
       })
       .catch(rethrowUniqueViolation(TestMessages.TEST_ALREADY_EXISTS));
 
@@ -191,9 +213,9 @@ class TestService {
       success: true,
     };
   }
-  async getAllTests(query: any): Promise<IAPISuccessResponse> {
+  async getAllTests(query: IGetAllTestsQuery): Promise<IAPISuccessResponse> {
     const { classExternalId, month, year } = query;
-    const whereCondition: any = {
+    const whereCondition: Prisma.TestWhereInput = {
       isActive: true,
       deletedAt: null,
     };
@@ -219,9 +241,7 @@ class TestService {
 
     const tests = await prisma.test.findMany({
       where: whereCondition,
-      include: {
-        class: true,
-      },
+      select: TEST_PUBLIC_FIELDS,
       // id breaks ties between tests in the same month
       orderBy: [{ year: 'desc' }, { month: 'desc' }, { id: 'desc' }],
     });
@@ -237,9 +257,7 @@ class TestService {
   async getTestById(externalId: string): Promise<IAPISuccessResponse> {
     const test = await prisma.test.findUnique({
       where: { externalId, isActive: true, deletedAt: null },
-      include: {
-        class: true,
-      },
+      select: TEST_PUBLIC_FIELDS,
     });
 
     if (!test) {

@@ -2,6 +2,17 @@ import { Prisma, SubjectType } from '@prisma/client';
 import { IBaseEntity } from '../../common/base/baseEntity.js';
 import { v4 as uuid } from 'uuid';
 
+// Internal id and audit columns stay in the service layer
+export const SUBJECT_PUBLIC_FIELDS = {
+  externalId: true,
+  name: true,
+  subjectType: true,
+  maxMarks: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.SubjectSelect;
+
 export interface ISubject extends IBaseEntity {
   name: string;
   subjectType: SubjectType;
@@ -34,5 +45,5 @@ export function createSubjectMapper(payload: ICreateSubject): Prisma.SubjectCrea
   };
 }
 export interface IGetAllSubjectsQuery {
-  classExternalId: string;
+  classExternalId?: string;
 }

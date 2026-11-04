@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../../common/base/baseController.js';
-import { TestService } from './index.js';
+import { IGetAllTestsQuery, TestService } from './index.js';
 
 class TestController extends BaseController {
   create = async (req: Request, res: Response, next: NextFunction) => {
@@ -18,7 +18,7 @@ class TestController extends BaseController {
   //TODO: handle pagination later if needed
   getAll = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await TestService.getAllTests(req.query);
+      const result = await TestService.getAllTests(req.query as IGetAllTestsQuery);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
       return next(error);

@@ -1,6 +1,13 @@
 import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
-import { createSubjectMapper, ICreateSubject, IGetAllSubjectsQuery, IUpdateSubject, SubjectMessages } from './index.js';
+import {
+  createSubjectMapper,
+  ICreateSubject,
+  IGetAllSubjectsQuery,
+  IUpdateSubject,
+  SUBJECT_PUBLIC_FIELDS,
+  SubjectMessages,
+} from './index.js';
 
 class SubjectService {
   async createSubject(payload: ICreateSubject): Promise<IAPISuccessResponse> {
@@ -19,6 +26,7 @@ class SubjectService {
     const createdSubject = await prisma.subject
       .create({
         data: subjectData,
+        select: SUBJECT_PUBLIC_FIELDS,
       })
       .catch(rethrowUniqueViolation(SubjectMessages.SUBJECT_ALREADY_EXISTS));
 
@@ -53,7 +61,8 @@ class SubjectService {
         deletedAt: null,
         ...(classId && { subjectClasses: { some: { classId } } }),
       },
-      include: {
+      select: {
+        ...SUBJECT_PUBLIC_FIELDS,
         subjectClasses: {
           where: {
             deletedAt: null,
@@ -78,10 +87,9 @@ class SubjectService {
     });
 
     // optional: flatten response
-    const formattedSubjects = subjects.map((subject) => ({
+    const formattedSubjects = subjects.map(({ subjectClasses, ...subject }) => ({
       ...subject,
-      classes: subject.subjectClasses.map((sc) => sc.class),
-      subjectClasses: undefined,
+      classes: subjectClasses.map((sc) => sc.class),
     }));
 
     return {
@@ -98,6 +106,7 @@ class SubjectService {
         externalId,
         deletedAt: null,
       },
+      select: SUBJECT_PUBLIC_FIELDS,
     });
 
     if (!subject) {
@@ -147,6 +156,7 @@ class SubjectService {
           ...payload,
           updatedBy: payload.updatedBy ?? null,
         },
+        select: SUBJECT_PUBLIC_FIELDS,
       })
       .catch(rethrowUniqueViolation(SubjectMessages.SUBJECT_ALREADY_EXISTS));
 

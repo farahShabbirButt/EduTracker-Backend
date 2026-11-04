@@ -30,3 +30,10 @@ export interface IUpdateTest {
   isActive?: boolean;
   updatedBy?: string;
 }
+
+// Query values reach the service as the strings Express parsed, not the validator's numbers
+export interface IGetAllTestsQuery {
+  classExternalId?: string;
+  month?: string;
+  year?: string;
+}

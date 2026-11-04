@@ -25,7 +25,7 @@ export const ZodValidator = (schema: ZodSchema) => (req: Request, res: Response,
   }
 
   // Optionally assign back (useful if you use transforms/defaults)
-  const data: any = result.data;
+  const data = result.data as Partial<Pick<Request, 'body' | 'params' | 'query'>>;
   if (data.body !== undefined) req.body = data.body;
   if (data.params !== undefined) req.params = data.params;
   if (data.query !== undefined) {

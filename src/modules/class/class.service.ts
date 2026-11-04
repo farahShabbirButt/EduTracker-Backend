@@ -1,7 +1,7 @@
 import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { ClassMessages, createClassMapper, ICreateClass, IUpdateClass } from './index.js';
-import { SubjectMessages } from '../../modules/subject/index.js';
+import { SUBJECT_PUBLIC_FIELDS, SubjectMessages } from '../../modules/subject/index.js';
 import { Prisma } from '@prisma/client';
 
 // Every class response goes through this projection — internal ids and the enrolled students'
@@ -167,8 +167,8 @@ class ClassService {
           deletedAt: null,
         },
       },
-      include: {
-        subject: true,
+      select: {
+        subject: { select: SUBJECT_PUBLIC_FIELDS },
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });

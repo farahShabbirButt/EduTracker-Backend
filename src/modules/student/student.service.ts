@@ -2,6 +2,14 @@ import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { ICreateStudent, IUpdateStudent, StudentMessages } from './index.js';
 import { StudentSubjectService } from '../../modules/studentSubject/index.js';
+import { Prisma } from '@prisma/client';
+
+const STUDENT_INCLUDE = {
+  class: { select: { externalId: true, name: true } },
+  studentSubjects: { include: { subjectClass: { include: { subject: true } } } },
+} satisfies Prisma.StudentInclude;
+
+type StudentWithRelations = Prisma.StudentGetPayload<{ include: typeof STUDENT_INCLUDE }>;
 
 class StudentService {
   //Create Student then assign compulsory subjects auto and assign elective subjects which user provided
@@ -61,7 +69,7 @@ class StudentService {
       );
 
       // Re-read with class + subjects so the response matches GET (the UI renders it straight into the table)
-      return tx.student.findUniqueOrThrow({ where: { id: student.id }, include: this.studentInclude });
+      return tx.student.findUniqueOrThrow({ where: { id: student.id }, include: STUDENT_INCLUDE });
     });
     return {
       keyName: 'student',
@@ -137,7 +145,7 @@ class StudentService {
         );
       }
 
-      return tx.student.findUniqueOrThrow({ where: { id: updated.id }, include: this.studentInclude });
+      return tx.student.findUniqueOrThrow({ where: { id: updated.id }, include: STUDENT_INCLUDE });
     });
 
     return {
@@ -156,7 +164,7 @@ class StudentService {
         isActive: true,
         deletedAt: null,
       },
-      include: this.studentInclude,
+      include: STUDENT_INCLUDE,
     });
 
     if (!student) {
@@ -193,7 +201,7 @@ class StudentService {
         isActive: true,
         deletedAt: null,
       },
-      include: this.studentInclude,
+      include: STUDENT_INCLUDE,
       orderBy: {
         rollNumber: 'asc',
       },
@@ -215,7 +223,7 @@ class StudentService {
         isActive: true,
         deletedAt: null,
       },
-      include: this.studentInclude,
+      include: STUDENT_INCLUDE,
       orderBy: [{ classId: 'asc' }, { rollNumber: 'asc' }],
     });
 
@@ -260,12 +268,7 @@ class StudentService {
     };
   }
 
-  private studentInclude = {
-    class: { select: { externalId: true, name: true } },
-    studentSubjects: { include: { subjectClass: { include: { subject: true } } } },
-  };
-
-  private formatStudentResponse = (student: any) => ({
+  private formatStudentResponse = (student: StudentWithRelations) => ({
     externalId: student.externalId,
     firstName: student.firstName,
     lastName: student.lastName,
@@ -277,7 +280,7 @@ class StudentService {
       externalId: student.class.externalId,
       name: student.class.name,
     },
-    subjects: student.studentSubjects.map((ss: any) => ({
+    subjects: student.studentSubjects.map((ss) => ({
       externalId: ss.subjectClass.subject.externalId,
       name: ss.subjectClass.subject.name,
       subjectType: ss.subjectClass.subject.subjectType,
