@@ -27,6 +27,7 @@ export interface IUpdateTest {
   year?: number;
   totalMarks?: number;
   classExternalId?: string;
+  subjects?: ITestSubjectInput[];
   isActive?: boolean;
   updatedBy?: string;
 }

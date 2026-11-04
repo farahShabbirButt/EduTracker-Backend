@@ -2,7 +2,7 @@ import { IBaseEntity } from '../../common/base/baseEntity.js';
 
 export interface IStudentScoreItem {
   studentExternalId: string;
-  marksObtained: number;
+  marksObtained: number | null;
 }
 export interface IMarksEntry extends IBaseEntity {
   studentId: number;

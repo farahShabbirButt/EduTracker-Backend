@@ -1,6 +1,13 @@
 import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
-import { ICreateTest, IGetAllTestsQuery, ISetTestSubjects, IUpdateTest, TestMessages } from './index.js';
+import {
+  ICreateTest,
+  IGetAllTestsQuery,
+  ISetTestSubjects,
+  ITestSubjectInput,
+  IUpdateTest,
+  TestMessages,
+} from './index.js';
 import { Prisma, TestType } from '@prisma/client';
 
 // What every test response carries. The Tests table and the edit form both read `class`,
@@ -17,6 +24,14 @@ const TEST_PUBLIC_FIELDS = {
   updatedAt: true,
   class: { select: { externalId: true, name: true } },
 } satisfies Prisma.TestSelect;
+
+// Marks that still count. A deleted student's marks are off every card and can't be cleared,
+// so they must not block changing a test. A student moved to another class keeps counting:
+// moving them back brings those marks back.
+const LIVE_SCORES = {
+  deletedAt: null,
+  student: { isActive: true, deletedAt: null },
+} satisfies Prisma.StudentScoreWhereInput;
 
 class TestService {
   async createTest(payload: ICreateTest): Promise<IAPISuccessResponse> {
@@ -147,6 +162,18 @@ class TestService {
       classId = classData.id;
     }
 
+    // The card finds a test through its class, so moving a marked test would take it off the
+    // old class's cards and print 0 on the new class's.
+    if (classId !== existingTest.classId) {
+      const markCount = await prisma.studentScore.count({
+        where: { ...LIVE_SCORES, testSubject: { testId: existingTest.id } },
+      });
+
+      if (markCount > 0) {
+        throw ApiError.format('', TestMessages.TEST_CLASS_LOCKED);
+      }
+    }
+
     // Duplicate check (exclude current test). Fields left out of the payload keep their saved
     // values: Prisma ignores `undefined`, which would otherwise match any test in the class.
     const duplicate = await prisma.test.findFirst({
@@ -166,20 +193,28 @@ class TestService {
       throw ApiError.format('', TestMessages.TEST_ALREADY_EXISTS);
     }
 
-    const updatedTest = await prisma.test
-      .update({
-        where: { id: existingTest.id },
-        data: {
-          name: payload.name,
-          testType: payload.testType,
-          month: payload.month,
-          year: payload.year,
-          totalMarks: payload.totalMarks,
-          classId: classId,
-        },
-        select: TEST_PUBLIC_FIELDS,
-      })
-      .catch(rethrowUniqueViolation(TestMessages.TEST_ALREADY_EXISTS));
+    // One transaction, so a refused subject change can't leave the other fields saved
+    const updatedTest = await prisma.$transaction(async (tx) => {
+      const test = await tx.test
+        .update({
+          where: { id: existingTest.id },
+          data: {
+            name: payload.name,
+            testType: payload.testType,
+            month: payload.month,
+            year: payload.year,
+            totalMarks: payload.totalMarks,
+            classId: classId,
+          },
+        })
+        .catch(rethrowUniqueViolation(TestMessages.TEST_ALREADY_EXISTS));
+
+      if (payload.subjects) {
+        await this.replaceTestSubjects(tx, test, payload.subjects);
+      }
+
+      return tx.test.findUniqueOrThrow({ where: { id: test.id }, select: TEST_PUBLIC_FIELDS });
+    });
 
     return {
       keyName: 'test',
@@ -314,91 +349,7 @@ class TestService {
         throw ApiError.format('', TestMessages.TEST_NOT_FOUND);
       }
 
-      // Resolve each subject to a SubjectClass row for THIS class
-      const resolvedSubjects: { subjectClassId: number; maxMarks: number }[] = [];
-
-      for (const item of payload.subjects) {
-        const subjectClass = await tx.subjectClass.findFirst({
-          where: {
-            classId: test.classId,
-            subject: {
-              externalId: item.subjectExternalId,
-              isActive: true,
-              deletedAt: null,
-            },
-            deletedAt: null,
-          },
-        });
-
-        if (!subjectClass) {
-          throw ApiError.format('', TestMessages.SUBJECT_NOT_IN_CLASS);
-        }
-
-        resolvedSubjects.push({ subjectClassId: subjectClass.id, maxMarks: item.maxMarks });
-      }
-
-      // ALL TestSubject rows ever created for this test, active or soft-deleted. We need the
-      // soft-deleted ones too: @@unique([testId, subjectClassId]) means re-adding a subject that
-      // was previously removed from this test must resurrect its old row, not INSERT a duplicate.
-      const allTestSubjects = await tx.testSubject.findMany({
-        where: { testId: test.id },
-        include: { scores: { where: { deletedAt: null } }, subjectClass: { include: { subject: true } } },
-      });
-
-      const activeTestSubjects = allTestSubjects.filter((ts) => ts.deletedAt === null);
-      const incomingSubjectClassIds = resolvedSubjects.map((s) => s.subjectClassId);
-
-      // Rows present now but missing from the incoming set — being removed
-      const toRemove = activeTestSubjects.filter((ts) => !incomingSubjectClassIds.includes(ts.subjectClassId));
-
-      const removalBlockedBy = toRemove.find((ts) => ts.scores.length > 0);
-      if (removalBlockedBy) {
-        throw ApiError.format(
-          {
-            message: `Cannot remove subject "${removalBlockedBy.subjectClass.subject.name}" — marks have already been entered for it`,
-            code: TestMessages.TEST_SUBJECT_HAS_SCORES.code,
-          },
-          TestMessages.TEST_SUBJECT_HAS_SCORES,
-        );
-      }
-
-      // Soft-delete removed rows
-      if (toRemove.length > 0) {
-        await tx.testSubject.updateMany({
-          where: { id: { in: toRemove.map((ts) => ts.id) } },
-          data: { deletedAt: new Date() },
-        });
-      }
-
-      // Upsert the rest — resurrecting (deletedAt: null) any row that was previously soft-deleted
-      const existingBySubjectClassId = new Map(allTestSubjects.map((ts) => [ts.subjectClassId, ts]));
-
-      for (const item of resolvedSubjects) {
-        const existing = existingBySubjectClassId.get(item.subjectClassId);
-
-        if (existing) {
-          await tx.testSubject.update({
-            where: { id: existing.id },
-            data: { maxMarks: item.maxMarks, deletedAt: null },
-          });
-        } else {
-          await tx.testSubject.create({
-            data: {
-              testId: test.id,
-              subjectClassId: item.subjectClassId,
-              maxMarks: item.maxMarks,
-            },
-          });
-        }
-      }
-
-      // Recompute the authoritative total from the subjects
-      const totalMarks = resolvedSubjects.reduce((sum, s) => sum + s.maxMarks, 0);
-
-      await tx.test.update({
-        where: { id: test.id },
-        data: { totalMarks },
-      });
+      await this.replaceTestSubjects(tx, test, payload.subjects);
 
       const finalTestSubjects = await tx.testSubject.findMany({
         where: { testId: test.id, deletedAt: null },
@@ -420,6 +371,113 @@ class TestService {
         message: TestMessages.TEST_SUBJECTS_UPDATED_SUCCESSFULLY.message,
         success: true,
       };
+    });
+  }
+
+  // Makes the test's subjects match `subjects`. Runs inside the caller's transaction.
+  private async replaceTestSubjects(
+    tx: Prisma.TransactionClient,
+    test: { id: number; classId: number },
+    subjects: ITestSubjectInput[],
+  ): Promise<void> {
+    // Resolve each subject to a SubjectClass row for THIS class
+    const resolvedSubjects: { subjectClassId: number; maxMarks: number }[] = [];
+
+    for (const item of subjects) {
+      const subjectClass = await tx.subjectClass.findFirst({
+        where: {
+          classId: test.classId,
+          subject: {
+            externalId: item.subjectExternalId,
+            isActive: true,
+            deletedAt: null,
+          },
+          deletedAt: null,
+        },
+      });
+
+      if (!subjectClass) {
+        throw ApiError.format('', TestMessages.SUBJECT_NOT_IN_CLASS);
+      }
+
+      resolvedSubjects.push({ subjectClassId: subjectClass.id, maxMarks: item.maxMarks });
+    }
+
+    // ALL TestSubject rows ever created for this test, active or soft-deleted. We need the
+    // soft-deleted ones too: @@unique([testId, subjectClassId]) means re-adding a subject that
+    // was previously removed from this test must resurrect its old row, not INSERT a duplicate.
+    const allTestSubjects = await tx.testSubject.findMany({
+      where: { testId: test.id },
+      include: { scores: { where: LIVE_SCORES }, subjectClass: { include: { subject: true } } },
+    });
+
+    const activeTestSubjects = allTestSubjects.filter((ts) => ts.deletedAt === null);
+    const incomingSubjectClassIds = resolvedSubjects.map((s) => s.subjectClassId);
+
+    // Rows present now but missing from the incoming set — being removed
+    const toRemove = activeTestSubjects.filter((ts) => !incomingSubjectClassIds.includes(ts.subjectClassId));
+
+    const removalBlockedBy = toRemove.find((ts) => ts.scores.length > 0);
+    if (removalBlockedBy) {
+      throw ApiError.format(
+        {
+          message: `Cannot remove subject "${removalBlockedBy.subjectClass.subject.name}" — marks have already been entered for it`,
+          code: TestMessages.TEST_SUBJECT_HAS_SCORES.code,
+        },
+        TestMessages.TEST_SUBJECT_HAS_SCORES,
+      );
+    }
+
+    // Soft-delete removed rows
+    if (toRemove.length > 0) {
+      await tx.testSubject.updateMany({
+        where: { id: { in: toRemove.map((ts) => ts.id) } },
+        data: { deletedAt: new Date() },
+      });
+    }
+
+    // Upsert the rest — resurrecting (deletedAt: null) any row that was previously soft-deleted
+    const existingBySubjectClassId = new Map(allTestSubjects.map((ts) => [ts.subjectClassId, ts]));
+
+    // A card would otherwise show e.g. 80/50, and a row over 100% has no grade band
+    for (const item of resolvedSubjects) {
+      const existing = existingBySubjectClassId.get(item.subjectClassId);
+      if (existing?.scores.some((score) => score.marksObtained > item.maxMarks)) {
+        throw ApiError.format(
+          {
+            message: `Max marks for "${existing.subjectClass.subject.name}" can't be lower than a mark already entered`,
+            code: TestMessages.MAX_MARKS_BELOW_SCORES.code,
+          },
+          TestMessages.MAX_MARKS_BELOW_SCORES,
+        );
+      }
+    }
+
+    for (const item of resolvedSubjects) {
+      const existing = existingBySubjectClassId.get(item.subjectClassId);
+
+      if (existing) {
+        await tx.testSubject.update({
+          where: { id: existing.id },
+          data: { maxMarks: item.maxMarks, deletedAt: null },
+        });
+      } else {
+        await tx.testSubject.create({
+          data: {
+            testId: test.id,
+            subjectClassId: item.subjectClassId,
+            maxMarks: item.maxMarks,
+          },
+        });
+      }
+    }
+
+    // Recompute the authoritative total from the subjects
+    const totalMarks = resolvedSubjects.reduce((sum, s) => sum + s.maxMarks, 0);
+
+    await tx.test.update({
+      where: { id: test.id },
+      data: { totalMarks },
     });
   }
 }

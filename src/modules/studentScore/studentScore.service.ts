@@ -43,6 +43,7 @@ class StudentScoreService {
     // Validate every score BEFORE opening the transaction — a failure halfway through
     // must not leave earlier writes committed.
     for (const item of scores) {
+      if (item.marksObtained === null) continue;
       if (item.marksObtained < 0) {
         throw ApiError.format('', StudentScoreMessages.MARKS_NEGATIVE);
       }
@@ -69,22 +70,23 @@ class StudentScoreService {
     await prisma.$transaction(
       scores
         .filter((item) => byExternalId.has(item.studentExternalId))
-        .map((item) =>
-          prisma.studentScore.upsert({
-            where: {
-              studentId_testSubjectId: {
-                studentId: byExternalId.get(item.studentExternalId)!,
-                testSubjectId: testSubject.id,
-              },
-            },
-            create: {
-              studentId: byExternalId.get(item.studentExternalId)!,
-              testSubjectId: testSubject.id,
-              marksObtained: item.marksObtained,
-            },
-            update: { marksObtained: item.marksObtained },
-          }),
-        ),
+        .map(({ studentExternalId, marksObtained }) => {
+          const studentId = byExternalId.get(studentExternalId)!;
+
+          if (marksObtained === null) {
+            return prisma.studentScore.updateMany({
+              where: { studentId, testSubjectId: testSubject.id, deletedAt: null },
+              data: { deletedAt: new Date() },
+            });
+          }
+
+          // deletedAt: a mark that was cleared earlier can be entered again
+          return prisma.studentScore.upsert({
+            where: { studentId_testSubjectId: { studentId, testSubjectId: testSubject.id } },
+            create: { studentId, testSubjectId: testSubject.id, marksObtained },
+            update: { marksObtained, deletedAt: null },
+          });
+        }),
     );
 
     return {
@@ -175,6 +177,7 @@ class StudentScoreService {
     const scores = await prisma.studentScore.findMany({
       where: {
         testSubjectId: testSubject.id,
+        deletedAt: null,
       },
     });
 
