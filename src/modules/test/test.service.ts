@@ -1,13 +1,6 @@
 import prisma, { LIVE_SCORES, rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
-import {
-  ICreateTest,
-  IGetAllTestsQuery,
-  ISetTestSubjects,
-  ITestSubjectInput,
-  IUpdateTest,
-  TestMessages,
-} from './index.js';
+import { ICreateTest, IGetAllTestsQuery, ITestSubjectInput, IUpdateTest, TestMessages } from './index.js';
 import { Prisma, TestType } from '@prisma/client';
 
 // What every test response carries. The Tests table and the edit form both read `class`,
@@ -339,41 +332,6 @@ class TestService {
       message: TestMessages.TEST_SUBJECTS_FETCHED_SUCCESSFULLY.message,
       success: true,
     };
-  }
-
-  async setTestSubjects(externalId: string, payload: ISetTestSubjects): Promise<IAPISuccessResponse> {
-    return await prisma.$transaction(async (tx) => {
-      const test = await tx.test.findUnique({
-        where: { externalId, isActive: true, deletedAt: null },
-      });
-
-      if (!test) {
-        throw ApiError.format('', TestMessages.TEST_NOT_FOUND);
-      }
-
-      await this.replaceTestSubjects(tx, test, payload.subjects);
-
-      const finalTestSubjects = await tx.testSubject.findMany({
-        where: { testId: test.id, deletedAt: null },
-        include: { subjectClass: { include: { subject: true } } },
-        orderBy: { id: 'asc' },
-      });
-
-      return {
-        keyName: 'testSubjects',
-        testSubjects: finalTestSubjects.map((ts) => ({
-          externalId: ts.externalId,
-          subject: {
-            externalId: ts.subjectClass.subject.externalId,
-            name: ts.subjectClass.subject.name,
-          },
-          maxMarks: ts.maxMarks,
-        })),
-        code: TestMessages.TEST_SUBJECTS_UPDATED_SUCCESSFULLY.code,
-        message: TestMessages.TEST_SUBJECTS_UPDATED_SUCCESSFULLY.message,
-        success: true,
-      };
-    });
   }
 
   // Makes the test's subjects match `subjects`. Runs inside the caller's transaction.

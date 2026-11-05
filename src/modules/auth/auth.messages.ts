@@ -45,11 +45,6 @@ export const RESET_LINK_SENT = Object.freeze({
   code: StatusCodes.OK,
 });
 
-export const FORGOT_PASSWORD_FAILURE = Object.freeze({
-  message: 'Failed to process password reset request',
-  code: StatusCodes.INTERNAL_SERVER_ERROR,
-});
-
 export const RESET_TOKEN_INVALID = Object.freeze({
   message: 'Reset link is invalid, expired, or has already been used',
   code: StatusCodes.BAD_REQUEST,
@@ -58,9 +53,4 @@ export const RESET_TOKEN_INVALID = Object.freeze({
 export const PASSWORD_RESET_SUCCESSFUL = Object.freeze({
   message: 'Password has been reset — please log in with your new password',
   code: StatusCodes.OK,
-});
-
-export const PASSWORD_RESET_FAILURE = Object.freeze({
-  message: 'Failed to reset password',
-  code: StatusCodes.INTERNAL_SERVER_ERROR,
 });

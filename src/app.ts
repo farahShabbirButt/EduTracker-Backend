@@ -1,7 +1,6 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 import { env } from './lib/env.js';
 import { API_ROUTE, APP_BASE } from './common/base/baseRoutes.js';
 import { SubjectRoutes } from './modules/subject/index.js';
@@ -18,11 +17,9 @@ import { AuthRoutes } from './modules/auth/index.js';
 import { notFoundMiddleware } from './middleware/notFound.middleware.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
-
-dotenv.config();
+import { requestLogger } from './middleware/requestLogger.middleware.js';
 
 const app: Application = express();
-console.info('App file loaded');
 // APP_BASE = '/edu-tracker';
 // API_ROUTE = '/api/v1';
 const BASE = APP_BASE + API_ROUTE;
@@ -38,10 +35,7 @@ const REPORT = BASE + '/report';
 const INSTITUTE = BASE + '/institute';
 const AUTH = BASE + '/auth';
 
-app.use((req, _res, next) => {
-  console.info('➡️ Incoming: ', req.method, req.url);
-  next();
-});
+app.use(requestLogger);
 
 // Global middlewares
 app.use(cookieParser());

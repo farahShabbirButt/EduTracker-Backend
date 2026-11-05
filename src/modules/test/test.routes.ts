@@ -9,7 +9,6 @@ router.get('/', ZodValidator(TestValidation.getAllTestValidation), TestControlle
 router.get('/:externalId', TestController.getById);
 router.get('/:externalId/subjects', TestController.getSubjects);
 router.put('/:externalId', ZodValidator(TestValidation.updateTestValidation), TestController.update);
-router.put('/:externalId/subjects', ZodValidator(TestValidation.setTestSubjectsValidation), TestController.setSubjects);
-router.delete('/:externalId', TestController.delete);
+router.delete('/:externalId', ZodValidator(TestValidation.deleteTestValidation), TestController.delete);
 
 export default router;

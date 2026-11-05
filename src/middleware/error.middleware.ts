@@ -13,6 +13,13 @@ const toHttpStatus = (code: unknown): number =>
 // Safety net for any error that escapes a controller's try/catch.
 // Structured IAPIErrorResponse errors are passed through; everything else is wrapped as a generic 500.
 export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
+  // Not logged: this error's message, stack and body all quote the request, which can hold a password
+  if (err?.type === 'entity.parse.failed') {
+    const invalidJson = ApiError.format({ message: 'Invalid request', code: StatusCodes.BAD_REQUEST });
+    res.status(StatusCodes.BAD_REQUEST).json(ApiError.sendResponse({ ...invalidJson, code: StatusCodes.BAD_REQUEST }));
+    return;
+  }
+
   const isStructured =
     err && typeof err === 'object' && 'success' in err && (err as IAPIErrorResponse).success === false;
 
@@ -26,8 +33,9 @@ export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
-  // The detail goes to the log only: a raw Prisma message carries file paths and queries
-  console.error('Unhandled error:', err);
+  // The detail goes to the log only: a raw Prisma message carries file paths and queries.
+  // The request logger writes it with the request's own line, so a 500 logs once.
+  res.err = err;
   const formatted = ApiError.format({ message: 'Something went wrong. Please try again' });
   const status = toHttpStatus(formatted.code);
   res.status(status).json(ApiError.sendResponse({ ...formatted, code: status }));

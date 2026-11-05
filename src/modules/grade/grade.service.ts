@@ -65,24 +65,6 @@ class GradeService {
     };
   }
 
-  async getGradeScaleById(externalId: string): Promise<IAPISuccessResponse> {
-    const gradeScale = await prisma.gradeScale.findFirst({
-      where: { externalId, deletedAt: null },
-      select: GRADE_SCALE_PUBLIC_FIELDS,
-    });
-
-    if (!gradeScale) {
-      throw ApiError.format(null, GradeMessages.GRADE_SCALE_NOT_FOUND);
-    }
-
-    return {
-      keyName: 'gradeScale',
-      gradeScale,
-      code: GradeMessages.GRADE_SCALE_FETCHED_SUCCESSFULLY.code,
-      message: GradeMessages.GRADE_SCALE_FETCHED_SUCCESSFULLY.message,
-    };
-  }
-
   async updateGradeScale(externalId: string, payload: IUpdateGradeScale): Promise<IAPISuccessResponse> {
     const gradeScale = await prisma.gradeScale.findFirst({
       where: { externalId, deletedAt: null },
