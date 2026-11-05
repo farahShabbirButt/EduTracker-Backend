@@ -44,16 +44,6 @@ class TestController extends BaseController {
       return next(error);
     }
   };
-  setSubjects = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { externalId } = req.params;
-
-      const result = await TestService.setTestSubjects(externalId, req.body);
-      return this.sendSuccessResponse(res, result);
-    } catch (error) {
-      return next(error);
-    }
-  };
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { externalId } = req.params;

@@ -38,23 +38,6 @@ export const createTestValidation = z.object({
   }),
 });
 
-export const setTestSubjectsValidation = z.object({
-  params: z.object({
-    externalId: z.uuid('Test external Id is required.Invalid UUID'),
-  }),
-  body: z.object({
-    subjects: z
-      .array(
-        z.object({
-          subjectExternalId: z.uuid('Invalid subject id'),
-          maxMarks: z.number('Max marks must be a number').int().positive().max(10000),
-        }),
-      )
-      .min(1, 'A test must include at least one subject')
-      .refine(noRepeatedSubject, REPEATED_SUBJECT),
-  }),
-});
-
 export const updateTestValidation = z.object({
   params: z.object({
     externalId: z.uuid('Class external Id is required.Invalid UUID'),
@@ -85,7 +68,7 @@ export const updateTestValidation = z.object({
 });
 export const deleteTestValidation = z.object({
   params: z.object({
-    externalId: z.uuid('Class external Id is required.Invalid UUID'),
+    externalId: z.uuid('Test external Id is required.Invalid UUID'),
   }),
 });
 

@@ -1,11 +1,6 @@
 import { Prisma } from '@prisma/client';
-import { IBaseEntity } from '../../common/base/baseEntity.js';
 import { v4 as uuid } from 'uuid';
 
-export interface IClass extends IBaseEntity {
-  name: string;
-  isActive: boolean;
-}
 export interface ICreateClass {
   name: string;
   isActive?: boolean;

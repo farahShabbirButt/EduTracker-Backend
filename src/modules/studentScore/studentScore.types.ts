@@ -1,13 +1,6 @@
-import { IBaseEntity } from '../../common/base/baseEntity.js';
-
 export interface IStudentScoreItem {
   studentExternalId: string;
   marksObtained: number | null;
-}
-export interface IMarksEntry extends IBaseEntity {
-  studentId: number;
-  testSubjectId: number;
-  marksObtained: number;
 }
 export interface ICreateMarksEntry {
   classExternalId: string;

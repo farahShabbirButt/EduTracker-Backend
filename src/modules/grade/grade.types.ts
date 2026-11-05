@@ -1,13 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { IBaseEntity } from '../../common/base/baseEntity.js';
 import { v4 as uuid } from 'uuid';
-
-export interface IGradeScale extends IBaseEntity {
-  minPercentage: number;
-  maxPercentage: number;
-  grade: string;
-  remarks: string;
-}
 
 export interface ICreateGradeScale {
   minPercentage: number;

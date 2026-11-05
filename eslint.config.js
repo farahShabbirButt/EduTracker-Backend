@@ -37,6 +37,14 @@ export default [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      "no-console": "error",
+    },
+  },
+
+  // Scripts run by hand and print to the terminal, so they keep console
+  {
+    files: ["prisma/**/*.ts"],
+    rules: {
       "no-console": ["error", { allow: ["error", "info"] }],
     },
   },

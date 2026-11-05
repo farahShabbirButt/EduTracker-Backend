@@ -6,7 +6,8 @@ The parent file `../CLAUDE.md` already documents the high-level architecture, mo
 
 ## Lint & style enforcement quirks
 
-- `console.log` is **banned** — ESLint allows only `console.info` and `console.error` (see `eslint.config.js`). Use `console.info` for general logs.
+- `console` is **banned** in `src/` — use `logger` from `lib/logger.ts`, or `req.log` inside a request so the line carries the request id. Scripts under `prisma/` keep `console.info` and `console.error`.
+- Pretty logs need `NODE_ENV=development`, which also needs dev dependencies. Anything else logs plain JSON.
 - `@typescript-eslint/no-explicit-any` is **off** — `any` is permitted (used throughout, e.g. `error as IAPIErrorResponse`).
 - Prettier: `printWidth: 120`, `singleQuote: true`, `trailingComma: 'all'`, `tabWidth: 2`, `semi: true`. Run `npm run lint-and-fix` before every commit.
 

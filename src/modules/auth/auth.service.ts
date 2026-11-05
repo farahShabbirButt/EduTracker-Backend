@@ -5,6 +5,7 @@ import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { env } from '../../lib/env.js';
 import { EmailService } from '../../lib/email.js';
+import { logger } from '../../lib/logger.js';
 import * as AuthMessages from './auth.messages.js';
 import type {
   ILoginPayload,
@@ -110,7 +111,7 @@ class AuthService {
       // Deliberately not awaited: awaiting makes the response time depend on whether the
       // account exists, which is an enumeration oracle. Failures are logged, never surfaced.
       void EmailService.sendPasswordResetEmail(user.email, resetUrl).catch((error) => {
-        console.error('Failed to send password reset email:', error);
+        logger.error({ err: error }, 'Failed to send password reset email');
       });
     }
 

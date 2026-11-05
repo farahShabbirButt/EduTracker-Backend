@@ -35,38 +35,13 @@ export const CLASS_NOT_FOUND = Object.freeze({
   code: StatusCodes.NOT_FOUND,
 });
 
-export const TEST_CREATION_FAILURE = Object.freeze({
-  message: 'Test creation failed',
-  code: StatusCodes.INTERNAL_SERVER_ERROR,
-});
-
-export const TEST_UPDATE_FAILURE = Object.freeze({
-  message: 'Test update failed',
-  code: StatusCodes.INTERNAL_SERVER_ERROR,
-});
-
-export const TEST_DELETION_FAILURE = Object.freeze({
-  message: 'Test deletion failed',
-  code: StatusCodes.INTERNAL_SERVER_ERROR,
-});
-
 export const TEST_FETCHED_SUCCESSFULLY = Object.freeze({
   message: 'Test fecthed Successfully',
   code: StatusCodes.OK,
 });
-export const TEST_FETCH_FAILURE = Object.freeze({
-  message: 'Failed to fetch test(s)',
-  code: StatusCodes.INTERNAL_SERVER_ERROR,
-});
-
 export const TESTS_LIST_FETCHED_SUCCESSFULLY = Object.freeze({
   message: 'Tests fecthed Successfully',
   code: StatusCodes.OK,
-});
-
-export const TESTS_LIST_FETCHING_FAILURE = Object.freeze({
-  message: 'TestTs fetching failed',
-  code: StatusCodes.BAD_REQUEST,
 });
 
 export const SUBJECT_NOT_IN_CLASS = Object.freeze({
@@ -96,10 +71,5 @@ export const MAX_MARKS_BELOW_SCORES = Object.freeze({
 
 export const TEST_SUBJECTS_FETCHED_SUCCESSFULLY = Object.freeze({
   message: 'Test subjects fetched successfully',
-  code: StatusCodes.OK,
-});
-
-export const TEST_SUBJECTS_UPDATED_SUCCESSFULLY = Object.freeze({
-  message: 'Test subjects updated successfully',
   code: StatusCodes.OK,
 });

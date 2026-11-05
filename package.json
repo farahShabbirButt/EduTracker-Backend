@@ -11,7 +11,6 @@
     "lint": "npm run prettier-lint && npx eslint . --ext .ts",
     "prettier-fix": "npx prettier --write \"src/**/*.ts\"",
     "prettier-lint": "npx prettier --check \"src/**/*.ts\"",
-    "typeorm": "npx typeorm",
     "build:prod": "npx tsc -p ."
   },
   "prisma": {
@@ -35,11 +34,11 @@
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.10",
     "pino": "^10.1.0",
+    "pino-http": "^11.0.0",
     "uuid": "^13.0.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -51,12 +50,11 @@
     "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^5.5.4",
     "nodemon": "^3.1.14",
+    "pino-pretty": "^13.2.0",
     "prettier": "^3.7.4",
     "prisma": "^6.19.1",
-    "ts-node": "^10.9.2",
     "tsx": "^4.22.3",
     "typescript": "^5.9.3"
   }

@@ -7,10 +7,10 @@ npx prisma studio
 Setup for seeds 
 ---> add a seed.ts file and seeds data in it then in package.json add this below line
 "prisma": {
-  "seed": "ts-node prisma/seed.ts"
+  "seed": "tsx prisma/seed.ts"
 }
---> Then run this below command if ts-node not already installed
-npm install -D ts-node
+--> Then run this below command if tsx not already installed
+npm install -D tsx
 
 RUN SEED
 npx prisma db seed

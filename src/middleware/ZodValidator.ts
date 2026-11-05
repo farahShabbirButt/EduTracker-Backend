@@ -11,9 +11,9 @@ export const ZodValidator = (schema: ZodSchema) => (req: Request, res: Response,
   });
 
   if (!result.success) {
-    console.info(
-      'Validation failed:',
-      result.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+    req.log.info(
+      { issues: result.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })) },
+      'Validation failed',
     );
 
     return res.status(StatusCodes.BAD_REQUEST).json(

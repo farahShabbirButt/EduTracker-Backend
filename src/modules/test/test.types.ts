@@ -16,10 +16,6 @@ export interface ICreateTest extends IBaseEntity {
   subjects: ITestSubjectInput[];
 }
 
-export interface ISetTestSubjects {
-  subjects: ITestSubjectInput[];
-}
-
 export interface IUpdateTest {
   name?: string;
   testType?: TestType;
