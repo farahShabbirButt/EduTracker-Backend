@@ -79,6 +79,11 @@ export const TEST_SUBJECT_HAS_SCORES = Object.freeze({
   code: StatusCodes.CONFLICT,
 });
 
+export const TEST_HAS_MARKS = Object.freeze({
+  message: 'This test has marks. Clear them on the marks sheet before deleting it',
+  code: StatusCodes.CONFLICT,
+});
+
 export const TEST_CLASS_LOCKED = Object.freeze({
   message: "Can't change the class of a test that already has marks entered",
   code: StatusCodes.CONFLICT,

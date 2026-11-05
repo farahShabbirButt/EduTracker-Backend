@@ -69,3 +69,13 @@ export const NO_GRADE_FOR_PERCENTAGE = {
   message: 'No grade scale found for the given percentage',
   code: StatusCodes.NOT_FOUND,
 };
+
+export const GRADE_SCALE_MIN_ABOVE_MAX = {
+  message: 'Minimum percentage must be less than maximum percentage',
+  code: StatusCodes.BAD_REQUEST,
+};
+
+export const GRADE_SCALE_LOWEST = {
+  message: "The lowest band is the failing one, so it can't be deleted. Edit it instead",
+  code: StatusCodes.CONFLICT,
+};

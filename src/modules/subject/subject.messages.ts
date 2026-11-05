@@ -63,3 +63,13 @@ export const CLASS_NOT_FOUND = Object.freeze({
   message: 'Class not found',
   code: StatusCodes.NOT_FOUND,
 });
+
+export const SUBJECT_HAS_MARKS = {
+  message: 'This subject has marks on tests, so it can not be deleted',
+  code: StatusCodes.CONFLICT,
+};
+
+export const SUBJECT_ON_TESTS = {
+  message: "This subject is on tests, so it can't become compulsory. Tick it for each student instead",
+  code: StatusCodes.CONFLICT,
+};

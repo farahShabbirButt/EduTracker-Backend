@@ -38,7 +38,10 @@ class SubjectController extends BaseController {
     try {
       const { externalId } = req.params;
 
-      const result = await SubjectService.updateSubject(externalId, req.body);
+      const result = await SubjectService.updateSubject(externalId, {
+        ...req.body,
+        updatedBy: req.user!.externalId,
+      });
 
       return this.sendSuccessResponse(res, result);
     } catch (error) {

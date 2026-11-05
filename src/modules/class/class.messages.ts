@@ -55,6 +55,16 @@ export const CLASS_DELETED_FAILURE = {
   code: StatusCodes.INTERNAL_SERVER_ERROR,
 };
 
+export const CLASS_HAS_STUDENTS = {
+  message: 'This class has students. Move or delete them first',
+  code: StatusCodes.CONFLICT,
+};
+
+export const CLASS_HAS_MARKS = {
+  message: 'Students who left this class still have marks on its tests, so it can not be deleted',
+  code: StatusCodes.CONFLICT,
+};
+
 export const CLASS_NOT_FOUND = {
   message: 'Class not found or inactive',
   code: StatusCodes.NOT_FOUND,

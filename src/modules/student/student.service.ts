@@ -6,7 +6,10 @@ import { Prisma } from '@prisma/client';
 
 const STUDENT_INCLUDE = {
   class: { select: { externalId: true, name: true } },
-  studentSubjects: { include: { subjectClass: { include: { subject: true } } } },
+  studentSubjects: {
+    where: { subjectClass: { deletedAt: null } },
+    include: { subjectClass: { include: { subject: true } } },
+  },
 } satisfies Prisma.StudentInclude;
 
 type StudentWithRelations = Prisma.StudentGetPayload<{ include: typeof STUDENT_INCLUDE }>;

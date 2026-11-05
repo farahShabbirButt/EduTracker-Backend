@@ -15,4 +15,12 @@ export const rethrowUniqueViolation =
     throw error;
   };
 
+// Marks that still count. A deleted student's marks are off every card and can't be cleared,
+// so they must not block a change. A student moved to another class keeps counting: the mark
+// stays on their card, and the marks sheet still lists them so it can be fixed.
+export const LIVE_SCORES = {
+  deletedAt: null,
+  student: { isActive: true, deletedAt: null },
+} satisfies Prisma.StudentScoreWhereInput;
+
 export default prisma;
