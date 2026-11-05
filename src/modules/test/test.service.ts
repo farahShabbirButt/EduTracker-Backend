@@ -1,4 +1,4 @@
-import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
+import prisma, { LIVE_SCORES, rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import {
   ICreateTest,
@@ -24,14 +24,6 @@ const TEST_PUBLIC_FIELDS = {
   updatedAt: true,
   class: { select: { externalId: true, name: true } },
 } satisfies Prisma.TestSelect;
-
-// Marks that still count. A deleted student's marks are off every card and can't be cleared,
-// so they must not block changing a test. A student moved to another class keeps counting:
-// the mark stays on their card, and the marks sheet still lists them so it can be fixed.
-const LIVE_SCORES = {
-  deletedAt: null,
-  student: { isActive: true, deletedAt: null },
-} satisfies Prisma.StudentScoreWhereInput;
 
 class TestService {
   async createTest(payload: ICreateTest): Promise<IAPISuccessResponse> {
@@ -233,6 +225,15 @@ class TestService {
       throw ApiError.format('', TestMessages.TEST_NOT_FOUND);
     }
 
+    // Its marks would leave every card, with no way back
+    const markCount = await prisma.studentScore.count({
+      where: { ...LIVE_SCORES, testSubject: { testId: test.id, deletedAt: null } },
+    });
+
+    if (markCount > 0) {
+      throw ApiError.format('', TestMessages.TEST_HAS_MARKS);
+    }
+
     await prisma.test.update({
       where: { id: test.id },
       data: {
@@ -253,6 +254,7 @@ class TestService {
     const whereCondition: Prisma.TestWhereInput = {
       isActive: true,
       deletedAt: null,
+      class: { deletedAt: null },
     };
     if (classExternalId) {
       const classData = await prisma.class.findUnique({

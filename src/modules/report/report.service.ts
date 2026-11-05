@@ -10,7 +10,8 @@ import {
   ReportMode,
 } from './index.js';
 
-const round2 = (value: number): number => Math.round(value * 100) / 100;
+// The nudge stops 14.375, stored as 14.37499..., rounding down
+const round2 = (value: number): number => Math.round(value * 100 + 1e-9) / 100;
 
 const monthIndex = ({ month, year }: { month: number; year: number }): number => year * 12 + month;
 const joinedMonthIndex = (date: Date): number => monthIndex({ month: date.getMonth() + 1, year: date.getFullYear() });
@@ -132,7 +133,17 @@ class ReportService {
       const grade = percentage === null ? null : (await GradeService.resolveGradeForPercentage(percentage)).grade;
 
       cardTests.push(test);
-      rows.push({ testExternalId: test.externalId, testName: test.name, marks, total, maxTotal, percentage, grade });
+      rows.push({
+        testExternalId: test.externalId,
+        testName: test.name,
+        month: test.month,
+        year: test.year,
+        marks,
+        total,
+        maxTotal,
+        percentage,
+        grade,
+      });
     }
 
     // Sorted by subject, so every student in a class gets the same column order
@@ -190,7 +201,7 @@ class ReportService {
         totalMarks,
         percentage: overallPercentage,
         grade: overallResult?.grade ?? null,
-        status: overallResult ? (overallResult.grade === 'F' ? 'FAIL' : 'PASS') : null,
+        status: overallResult ? (overallResult.failing ? 'FAIL' : 'PASS') : null,
         remarks: overallResult?.remarks ?? '',
       },
       conduct: {

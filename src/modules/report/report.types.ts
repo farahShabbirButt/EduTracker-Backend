@@ -13,6 +13,8 @@ export interface IReportCardSubjectColumn {
 export interface IReportCardRow {
   testExternalId: string;
   testName: string;
+  month: number;
+  year: number;
   // No key: the student wasn't examined in that subject. obtained null: their mark isn't entered yet.
   marks: Record<string, { obtained: number | null; max: number }>;
   // Entered marks only, and the max of those subjects

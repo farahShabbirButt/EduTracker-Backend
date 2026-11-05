@@ -1,4 +1,4 @@
-import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
+import prisma, { LIVE_SCORES, rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { ClassMessages, createClassMapper, ICreateClass, IUpdateClass } from './index.js';
 import { SUBJECT_PUBLIC_FIELDS, SubjectMessages } from '../../modules/subject/index.js';
@@ -20,7 +20,6 @@ class ClassService {
     const existingClass = await prisma.class.findFirst({
       where: {
         name: payload.name,
-        isActive: true,
         deletedAt: null,
       },
     });
@@ -130,6 +129,23 @@ class ClassService {
 
     if (!classItem) {
       throw ApiError.format(null, ClassMessages.CLASS_NOT_FOUND);
+    }
+
+    // Its students would be cut off from marks entry, with no way back
+    const studentCount = await prisma.student.count({
+      where: { classId: classItem.id, isActive: true, deletedAt: null },
+    });
+
+    if (studentCount > 0) {
+      throw ApiError.format('', ClassMessages.CLASS_HAS_STUDENTS);
+    }
+
+    const markCount = await prisma.studentScore.count({
+      where: { ...LIVE_SCORES, testSubject: { test: { classId: classItem.id, isActive: true, deletedAt: null } } },
+    });
+
+    if (markCount > 0) {
+      throw ApiError.format('', ClassMessages.CLASS_HAS_MARKS);
     }
 
     // Soft delete

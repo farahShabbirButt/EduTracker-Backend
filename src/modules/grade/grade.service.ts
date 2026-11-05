@@ -95,6 +95,10 @@ class GradeService {
     const minPercentage = payload.minPercentage ?? gradeScale.minPercentage;
     const maxPercentage = payload.maxPercentage ?? gradeScale.maxPercentage;
 
+    if (minPercentage >= maxPercentage) {
+      throw ApiError.format('', GradeMessages.GRADE_SCALE_MIN_ABOVE_MAX);
+    }
+
     await this.assertNoOverlap(minPercentage, maxPercentage, gradeScale.id);
 
     const updatedGradeScale = await prisma.gradeScale.update({
@@ -120,6 +124,17 @@ class GradeService {
       throw ApiError.format(null, GradeMessages.GRADE_SCALE_NOT_FOUND);
     }
 
+    // The next band up would quietly become the failing one
+    const lowest = await prisma.gradeScale.findFirst({
+      where: { deletedAt: null },
+      orderBy: { minPercentage: 'asc' },
+      select: { id: true },
+    });
+
+    if (lowest?.id === gradeScale.id) {
+      throw ApiError.format('', GradeMessages.GRADE_SCALE_LOWEST);
+    }
+
     await prisma.gradeScale.update({
       where: { id: gradeScale.id },
       data: { deletedAt: new Date() },
@@ -133,17 +148,23 @@ class GradeService {
     };
   }
 
-  async resolveGradeForPercentage(pct: number): Promise<{ grade: string; remarks: string }> {
-    const band = await prisma.gradeScale.findFirst({
-      where: { deletedAt: null, minPercentage: { lte: pct }, maxPercentage: { gte: pct } },
+  // A percentage in a gap between bands takes the band below it, so a gap can't stop a card
+  // printing. The lowest band is the failing one, whatever the school calls it.
+  async resolveGradeForPercentage(pct: number): Promise<{ grade: string; remarks: string; failing: boolean }> {
+    const bands = await prisma.gradeScale.findMany({
+      where: { deletedAt: null },
       orderBy: { minPercentage: 'desc' },
     });
 
-    if (!band) {
+    const lowest = bands[bands.length - 1];
+
+    if (!lowest) {
       throw ApiError.format('', GradeMessages.NO_GRADE_FOR_PERCENTAGE);
     }
 
-    return { grade: band.grade, remarks: band.remarks };
+    const band = bands.find((b) => b.minPercentage <= pct) ?? lowest;
+
+    return { grade: band.grade, remarks: band.remarks, failing: band.id === lowest.id };
   }
 }
 

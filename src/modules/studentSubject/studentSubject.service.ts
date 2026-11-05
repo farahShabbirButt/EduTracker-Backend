@@ -63,6 +63,35 @@ class StudentSubjectService {
       });
     }
   }
+
+  // Students are enrolled per subject, so one who joined before the subject was assigned isn't
+  // missing from its marks sheet. Electives are left to the student's own choice.
+  async enrolClassInCompulsorySubjects(classId: number, tx: Prisma.TransactionClient = prisma): Promise<void> {
+    const compulsoryLinks = await tx.subjectClass.findMany({
+      where: {
+        classId,
+        deletedAt: null,
+        subject: { subjectType: SubjectType.COMPULSORY, isActive: true, deletedAt: null },
+      },
+      select: { id: true, subjectId: true },
+    });
+
+    const students = await tx.student.findMany({
+      where: { classId, isActive: true, deletedAt: null },
+      select: { id: true, studentSubjects: { select: { subjectClass: { select: { subjectId: true } } } } },
+    });
+
+    const missing = students.flatMap((student) => {
+      const taken = new Set(student.studentSubjects.map((ss) => ss.subjectClass.subjectId));
+      return compulsoryLinks
+        .filter((link) => !taken.has(link.subjectId))
+        .map((link) => ({ studentId: student.id, subjectClassId: link.id }));
+    });
+
+    if (missing.length > 0) {
+      await tx.studentSubject.createMany({ data: missing });
+    }
+  }
 }
 
 export default new StudentSubjectService();

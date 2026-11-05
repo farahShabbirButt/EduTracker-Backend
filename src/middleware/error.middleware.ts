@@ -26,8 +26,9 @@ export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
+  // The detail goes to the log only: a raw Prisma message carries file paths and queries
   console.error('Unhandled error:', err);
-  const formatted = ApiError.format(err);
+  const formatted = ApiError.format({ message: 'Something went wrong. Please try again' });
   const status = toHttpStatus(formatted.code);
   res.status(status).json(ApiError.sendResponse({ ...formatted, code: status }));
 };

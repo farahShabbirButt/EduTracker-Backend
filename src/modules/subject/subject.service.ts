@@ -1,4 +1,6 @@
-import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
+import { SubjectType } from '@prisma/client';
+import prisma, { LIVE_SCORES, rethrowUniqueViolation } from '../../lib/prisma.js';
+import { StudentSubjectService } from '../../modules/studentSubject/index.js';
 import { ApiError } from '../../common/responses/index.js';
 import {
   createSubjectMapper,
@@ -59,7 +61,7 @@ class SubjectService {
       where: {
         isActive: true,
         deletedAt: null,
-        ...(classId && { subjectClasses: { some: { classId } } }),
+        ...(classId && { subjectClasses: { some: { classId, deletedAt: null } } }),
       },
       select: {
         ...SUBJECT_PUBLIC_FIELDS,
@@ -138,7 +140,6 @@ class SubjectService {
       const duplicate = await prisma.subject.findFirst({
         where: {
           name: payload.name,
-          isActive: true,
           deletedAt: null,
           externalId: { not: externalId },
         },
@@ -149,16 +150,50 @@ class SubjectService {
       }
     }
 
-    const updatedSubject = await prisma.subject
-      .update({
-        where: { id: subject.id },
-        data: {
-          ...payload,
-          updatedBy: payload.updatedBy ?? null,
+    const becomingCompulsory =
+      payload.subjectType === SubjectType.COMPULSORY && subject.subjectType !== SubjectType.COMPULSORY;
+
+    // Everyone in the class would owe its past tests, and cards would fill with blanks
+    if (becomingCompulsory) {
+      const testCount = await prisma.testSubject.count({
+        where: {
+          deletedAt: null,
+          test: { isActive: true, deletedAt: null },
+          subjectClass: { subjectId: subject.id },
         },
-        select: SUBJECT_PUBLIC_FIELDS,
-      })
-      .catch(rethrowUniqueViolation(SubjectMessages.SUBJECT_ALREADY_EXISTS));
+      });
+
+      if (testCount > 0) {
+        throw ApiError.format(null, SubjectMessages.SUBJECT_ON_TESTS);
+      }
+    }
+
+    const updatedSubject = await prisma.$transaction(async (tx) => {
+      const updated = await tx.subject
+        .update({
+          where: { id: subject.id },
+          data: {
+            ...payload,
+            updatedBy: payload.updatedBy ?? null,
+          },
+          select: SUBJECT_PUBLIC_FIELDS,
+        })
+        .catch(rethrowUniqueViolation(SubjectMessages.SUBJECT_ALREADY_EXISTS));
+
+      // Now compulsory, so every student in its classes takes it
+      if (becomingCompulsory) {
+        const links = await tx.subjectClass.findMany({
+          where: { subjectId: subject.id, deletedAt: null },
+          select: { classId: true },
+        });
+
+        for (const { classId } of links) {
+          await StudentSubjectService.enrolClassInCompulsorySubjects(classId, tx);
+        }
+      }
+
+      return updated;
+    });
 
     return {
       keyName: 'subject',
@@ -178,13 +213,44 @@ class SubjectService {
     if (!subject) {
       throw ApiError.format(null, SubjectMessages.SUBJECT_NOT_FOUND);
     }
-    //Soft delete
-    await prisma.subject.update({
-      where: { id: subject.id },
-      data: {
-        isActive: false,
-        deletedAt: new Date(),
+    // Marks would stay on cards but couldn't be fixed, and a new subject of the same name
+    // would print as a second column
+    const markCount = await prisma.studentScore.count({
+      where: {
+        ...LIVE_SCORES,
+        testSubject: {
+          deletedAt: null,
+          test: { isActive: true, deletedAt: null },
+          subjectClass: { subjectId: subject.id },
+        },
       },
+    });
+
+    if (markCount > 0) {
+      throw ApiError.format(null, SubjectMessages.SUBJECT_HAS_MARKS);
+    }
+
+    // Comes off its tests too, or every card would show a column no mark can fill
+    await prisma.$transaction(async (tx) => {
+      const deletedAt = new Date();
+      const testSubjects = await tx.testSubject.findMany({
+        where: { deletedAt: null, subjectClass: { subjectId: subject.id } },
+        select: { id: true, testId: true, maxMarks: true },
+      });
+
+      await tx.testSubject.updateMany({ where: { id: { in: testSubjects.map((ts) => ts.id) } }, data: { deletedAt } });
+
+      for (const { testId, maxMarks } of testSubjects) {
+        await tx.test.update({ where: { id: testId }, data: { totalMarks: { decrement: maxMarks } } });
+      }
+
+      await tx.subject.update({
+        where: { id: subject.id },
+        data: {
+          isActive: false,
+          deletedAt,
+        },
+      });
     });
 
     return {
