@@ -183,7 +183,7 @@ class ReportService {
     const cardClasses = [...new Set(cardTests.map((test) => test.class.name))];
 
     const report: IReportCard = {
-      institute: { name: institute.name, address: institute.address, phone: institute.phone },
+      institute: { name: institute.name, address: institute.address, phone: institute.phone, logo: institute.logo },
       student: {
         name: `${student.firstName} ${student.lastName}`.trim(),
         fatherName: student.fatherName,

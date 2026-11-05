@@ -2,6 +2,7 @@ export interface ISaveInstitute {
   name: string;
   address: string;
   phone: string;
-  schoolYearStartMonth: number;
+  schoolYearStartDate: string;
+  logo?: string | null;
   updatedBy?: string;
 }
