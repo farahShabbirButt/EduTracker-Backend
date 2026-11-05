@@ -40,6 +40,8 @@ app.use(requestLogger);
 // Global middlewares
 app.use(cookieParser());
 app.use(cors({ origin: env.frontendUrl, credentials: true }));
+// Only the school's details carry a logo. Whichever parser runs first handles the body.
+app.use(INSTITUTE, express.json({ limit: '500kb' }));
 app.use(express.json());
 
 app.get('/', (_req, res) => {

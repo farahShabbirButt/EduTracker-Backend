@@ -38,6 +38,7 @@ const INSTITUTE = {
     address:
         "Dhobi Ghat Stop Near Nafeerabad Graveyard Shalimar Town Lahore",
     phone: "+92 324 0012215",
+    schoolYearStartDate: new Date("2026-01-01"),
 };
 
 // Idempotent: creates the Institute row if one with this name doesn't already exist.

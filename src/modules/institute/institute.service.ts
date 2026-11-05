@@ -7,8 +7,17 @@ const INSTITUTE_PUBLIC_FIELDS = {
   name: true,
   address: true,
   phone: true,
-  schoolYearStartMonth: true,
+  schoolYearStartDate: true,
+  logo: true,
 } satisfies Prisma.InstituteSelect;
+
+type PublicInstitute = Prisma.InstituteGetPayload<{ select: typeof INSTITUTE_PUBLIC_FIELDS }>;
+
+// A date without a time, so it can't shift a day in another timezone
+const toResponse = (institute: PublicInstitute) => ({
+  ...institute,
+  schoolYearStartDate: institute.schoolYearStartDate.toISOString().slice(0, 10),
+});
 
 class InstituteService {
   // There is one school. null until its details are entered.
@@ -21,14 +30,16 @@ class InstituteService {
 
     return {
       keyName: 'institute',
-      institute,
+      institute: institute && toResponse(institute),
       code: InstituteMessages.INSTITUTE_FETCHED_SUCCESSFULLY.code,
       message: InstituteMessages.INSTITUTE_FETCHED_SUCCESSFULLY.message,
       success: true,
     };
   }
 
-  async saveInstitute({ updatedBy, ...details }: ISaveInstitute): Promise<IAPISuccessResponse> {
+  async saveInstitute({ updatedBy, schoolYearStartDate, ...rest }: ISaveInstitute): Promise<IAPISuccessResponse> {
+    const details = { ...rest, schoolYearStartDate: new Date(schoolYearStartDate) };
+
     const existing = await prisma.institute.findFirst({
       where: { deletedAt: null },
       orderBy: { id: 'asc' },
@@ -48,7 +59,7 @@ class InstituteService {
 
     return {
       keyName: 'institute',
-      institute,
+      institute: toResponse(institute),
       code: InstituteMessages.INSTITUTE_SAVED_SUCCESSFULLY.code,
       message: InstituteMessages.INSTITUTE_SAVED_SUCCESSFULLY.message,
       success: true,

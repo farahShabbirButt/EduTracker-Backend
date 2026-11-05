@@ -193,13 +193,15 @@ model StudentConduct {
 }
 
 model Institute {
-  id                   Int    @id @default(autoincrement())
-  externalId           String @unique @default(uuid())
-  name                 String
-  address              String
-  phone                String
-  // 1 to 12. Reports fill their From and To months from this.
-  schoolYearStartMonth Int    @default(1)
+  id                  Int      @id @default(autoincrement())
+  externalId          String   @unique @default(uuid())
+  name                String
+  address             String
+  phone               String
+  // Reports fill their From and To months from this date's month
+  schoolYearStartDate DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
+  // A data URL, printed on result cards
+  logo                String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

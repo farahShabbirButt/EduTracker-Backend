@@ -13,6 +13,14 @@ const toHttpStatus = (code: unknown): number =>
 // Safety net for any error that escapes a controller's try/catch.
 // Structured IAPIErrorResponse errors are passed through; everything else is wrapped as a generic 500.
 export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
+  if (err?.type === 'entity.too.large') {
+    const tooLarge = ApiError.format({ message: 'Request is too large', code: StatusCodes.REQUEST_TOO_LONG });
+    res
+      .status(StatusCodes.REQUEST_TOO_LONG)
+      .json(ApiError.sendResponse({ ...tooLarge, code: StatusCodes.REQUEST_TOO_LONG }));
+    return;
+  }
+
   // Not logged: this error's message, stack and body all quote the request, which can hold a password
   if (err?.type === 'entity.parse.failed') {
     const invalidJson = ApiError.format({ message: 'Invalid request', code: StatusCodes.BAD_REQUEST });
