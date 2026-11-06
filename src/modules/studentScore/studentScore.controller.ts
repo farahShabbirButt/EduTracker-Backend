@@ -1,19 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../../common/base/baseController.js';
-import { IGetMarksEntryQuery, StudentScoreService } from './index.js';
+import { IGetMarksGridQuery, StudentScoreService } from './index.js';
 
 class StudentScoreController extends BaseController {
-  enterMarks = async (req: Request, res: Response, next: NextFunction) => {
+  getMarksGrid = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await StudentScoreService.enterMarks(req.body);
+      const result = await StudentScoreService.getMarksGrid(req.query as unknown as IGetMarksGridQuery);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
       return next(error);
     }
   };
-  getMarksEntryStudents = async (req: Request, res: Response, next: NextFunction) => {
+
+  saveMarksGrid = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await StudentScoreService.getMarksEntryStudents(req.query as unknown as IGetMarksEntryQuery);
+      const result = await StudentScoreService.saveMarksGrid(req.body);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
       return next(error);

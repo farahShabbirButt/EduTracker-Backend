@@ -4,10 +4,7 @@ import { StudentScoreController, StudentScoreValidation } from './index.js';
 
 const router = Router();
 
-router.post('/entry', ZodValidator(StudentScoreValidation.marksEntryValidation), StudentScoreController.enterMarks);
-router.get(
-  '/entry',
-  ZodValidator(StudentScoreValidation.getMarksEntryStudentsVaidation),
-  StudentScoreController.getMarksEntryStudents,
-);
+router.get('/grid', ZodValidator(StudentScoreValidation.getMarksGridValidation), StudentScoreController.getMarksGrid);
+router.put('/grid', ZodValidator(StudentScoreValidation.saveMarksGridValidation), StudentScoreController.saveMarksGrid);
+
 export default router;

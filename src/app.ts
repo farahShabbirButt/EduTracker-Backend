@@ -13,6 +13,7 @@ import { GradeRoutes } from './modules/grade/index.js';
 import { ConductRoutes } from './modules/conduct/index.js';
 import { ReportRoutes } from './modules/report/index.js';
 import { InstituteRoutes } from './modules/institute/index.js';
+import { DashboardRoutes } from './modules/dashboard/index.js';
 import { AuthRoutes } from './modules/auth/index.js';
 import { notFoundMiddleware } from './middleware/notFound.middleware.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
@@ -33,6 +34,7 @@ const GRADE_SCALE = BASE + '/grade-scale';
 const CONDUCT = BASE + '/conduct';
 const REPORT = BASE + '/report';
 const INSTITUTE = BASE + '/institute';
+const DASHBOARD = BASE + '/dashboard';
 const AUTH = BASE + '/auth';
 
 app.use(requestLogger);
@@ -40,8 +42,11 @@ app.use(requestLogger);
 // Global middlewares
 app.use(cookieParser());
 app.use(cors({ origin: env.frontendUrl, credentials: true }));
-// Only the school's details carry a logo. Whichever parser runs first handles the body.
+// Bigger limits for the bodies that need them. Whichever parser runs first handles the body.
+// The school's logo
 app.use(INSTITUTE, express.json({ limit: '500kb' }));
+// A whole class's first marks entry
+app.use(STUDENT_SCORE, express.json({ limit: '1mb' }));
 app.use(express.json());
 
 app.get('/', (_req, res) => {
@@ -65,6 +70,7 @@ app.use(GRADE_SCALE, authMiddleware, GradeRoutes);
 app.use(CONDUCT, authMiddleware, ConductRoutes);
 app.use(REPORT, authMiddleware, ReportRoutes);
 app.use(INSTITUTE, authMiddleware, InstituteRoutes);
+app.use(DASHBOARD, authMiddleware, DashboardRoutes);
 
 // 404 + error handlers — must be registered AFTER all routes
 app.use(notFoundMiddleware);

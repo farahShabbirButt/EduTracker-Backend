@@ -14,3 +14,8 @@ export const CONDUCT_FETCHED_SUCCESSFULLY = Object.freeze({
   message: 'Conduct fetched successfully',
   code: StatusCodes.OK,
 });
+
+export const CLASS_NOT_FOUND = Object.freeze({
+  message: 'Class not found',
+  code: StatusCodes.NOT_FOUND,
+});

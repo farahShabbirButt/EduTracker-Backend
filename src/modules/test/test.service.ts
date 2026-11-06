@@ -1,3 +1,4 @@
+import { getTestProgress } from '../../lib/marksDue.js';
 import prisma, { LIVE_SCORES, rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { ICreateTest, IGetAllTestsQuery, ITestSubjectInput, IUpdateTest, TestMessages } from './index.js';
@@ -19,8 +20,24 @@ const TEST_PUBLIC_FIELDS = {
 } satisfies Prisma.TestSelect;
 
 class TestService {
+  // Same shape as the list
+  private async withProgress(result: IAPISuccessResponse): Promise<IAPISuccessResponse> {
+    const { externalId } = result.test as { externalId: string };
+    const row = await prisma.test.findUniqueOrThrow({ where: { externalId }, select: { id: true } });
+    const progress = (await getTestProgress([row.id])).get(row.id);
+
+    return {
+      ...result,
+      test: {
+        ...(result.test as object),
+        marksEntered: progress?.entered ?? 0,
+        marksExpected: progress?.expected ?? 0,
+      },
+    };
+  }
+
   async createTest(payload: ICreateTest): Promise<IAPISuccessResponse> {
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // 1️⃣ Get class
       const classData = await tx.class.findUnique({
         where: {
@@ -121,6 +138,8 @@ class TestService {
         success: true,
       };
     });
+
+    return this.withProgress(result);
   }
 
   async updateTest(externalId: string, payload: IUpdateTest): Promise<IAPISuccessResponse> {
@@ -201,13 +220,13 @@ class TestService {
       return tx.test.findUniqueOrThrow({ where: { id: test.id }, select: TEST_PUBLIC_FIELDS });
     });
 
-    return {
+    return this.withProgress({
       keyName: 'test',
       test: updatedTest,
       code: TestMessages.TEST_UPDATED_SUCCESSFULLY.code,
       message: TestMessages.TEST_UPDATED_SUCCESSFULLY.message,
       success: true,
-    };
+    });
   }
   async deleteTest(externalId: string): Promise<IAPISuccessResponse> {
     const test = await prisma.test.findUnique({
@@ -271,14 +290,20 @@ class TestService {
 
     const tests = await prisma.test.findMany({
       where: whereCondition,
-      select: TEST_PUBLIC_FIELDS,
+      select: { ...TEST_PUBLIC_FIELDS, id: true },
       // id breaks ties between tests in the same month
       orderBy: [{ year: 'desc' }, { month: 'desc' }, { id: 'desc' }],
     });
 
+    const progress = await getTestProgress(tests.map((test) => test.id));
+
     return {
       keyName: 'tests',
-      tests,
+      tests: tests.map(({ id, ...test }) => ({
+        ...test,
+        marksEntered: progress.get(id)?.entered ?? 0,
+        marksExpected: progress.get(id)?.expected ?? 0,
+      })),
       code: TestMessages.TESTS_LIST_FETCHED_SUCCESSFULLY.code,
       message: TestMessages.TESTS_LIST_FETCHED_SUCCESSFULLY.message,
       success: true,

@@ -1,4 +1,5 @@
 import prisma from '../../lib/prisma.js';
+import { joinedMonthIndex, monthIndex, owesTest } from '../../lib/marksDue.js';
 import { ApiError } from '../../common/responses/index.js';
 import { GradeService } from '../grade/index.js';
 import {
@@ -12,14 +13,6 @@ import {
 
 // The nudge stops 14.375, stored as 14.37499..., rounding down
 const round2 = (value: number): number => Math.round(value * 100 + 1e-9) / 100;
-
-const monthIndex = ({ month, year }: { month: number; year: number }): number => year * 12 + month;
-const joinedMonthIndex = (date: Date): number => monthIndex({ month: date.getMonth() + 1, year: date.getFullYear() });
-
-// A test from before the student joined the class isn't theirs to sit, unless they have a mark
-// on it. The month is all a test records, so a test in the joining month counts.
-const owesTest = (classSince: Date, test: { month: number; year: number }, hasMarkOnTest: boolean): boolean =>
-  hasMarkOnTest || monthIndex(test) >= joinedMonthIndex(classSince);
 
 // The group ranked for a class, the same on every card: its current students, plus anyone who
 // only left after the period ended. A current student can have joined "after" a test whose marks

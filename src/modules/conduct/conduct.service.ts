@@ -1,64 +1,97 @@
 import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
-import { ConductMessages, IUpsertConduct } from './index.js';
-import { Prisma } from '@prisma/client';
-
-// The student is identified by the externalId the caller passed in
-const CONDUCT_PUBLIC_FIELDS = {
-  externalId: true,
-  month: true,
-  year: true,
-  behaviour: true,
-  uniformCleanliness: true,
-} satisfies Prisma.StudentConductSelect;
+import { ConductMessages, ISaveClassConduct } from './index.js';
 
 class ConductService {
-  async upsertConduct(studentExternalId: string, payload: IUpsertConduct): Promise<IAPISuccessResponse> {
-    const student = await prisma.student.findFirst({
-      where: { externalId: studentExternalId, isActive: true, deletedAt: null },
+  private async findClass(classExternalId: string) {
+    const classData = await prisma.class.findUnique({
+      where: { externalId: classExternalId, isActive: true, deletedAt: null },
+      select: { id: true, externalId: true, name: true },
     });
 
-    if (!student) {
-      throw ApiError.format('', ConductMessages.STUDENT_NOT_FOUND);
+    if (!classData) {
+      throw ApiError.format('', ConductMessages.CLASS_NOT_FOUND);
     }
 
-    const { month, year, behaviour, uniformCleanliness, createdBy, updatedBy } = payload;
+    return classData;
+  }
 
-    const conduct = await prisma.studentConduct.upsert({
-      where: { studentId_month_year: { studentId: student.id, month, year } },
-      create: { studentId: student.id, month, year, behaviour, uniformCleanliness, createdBy },
-      update: { behaviour, uniformCleanliness, updatedBy },
-      select: CONDUCT_PUBLIC_FIELDS,
+  async getClassConduct(classExternalId: string, month: number, year: number): Promise<IAPISuccessResponse> {
+    const classData = await this.findClass(classExternalId);
+
+    const students = await prisma.student.findMany({
+      where: { classId: classData.id, isActive: true, deletedAt: null },
+      select: {
+        externalId: true,
+        firstName: true,
+        lastName: true,
+        rollNumber: true,
+        conducts: {
+          where: { month, year, deletedAt: null },
+          select: { behaviour: true, uniformCleanliness: true },
+        },
+      },
     });
 
+    // In register order: 2 comes before 10
+    students.sort((a, b) => a.rollNumber.localeCompare(b.rollNumber, undefined, { numeric: true }));
+
     return {
-      keyName: 'conduct',
-      conduct: { ...conduct, studentExternalId },
-      code: ConductMessages.CONDUCT_UPSERTED_SUCCESSFULLY.code,
-      message: ConductMessages.CONDUCT_UPSERTED_SUCCESSFULLY.message,
+      keyName: 'classConduct',
+      classConduct: {
+        month,
+        year,
+        students: students.map(({ conducts, ...student }) => ({
+          ...student,
+          behaviour: conducts[0]?.behaviour ?? null,
+          uniformCleanliness: conducts[0]?.uniformCleanliness ?? null,
+        })),
+      },
+      code: ConductMessages.CONDUCT_FETCHED_SUCCESSFULLY.code,
+      message: ConductMessages.CONDUCT_FETCHED_SUCCESSFULLY.message,
       success: true,
     };
   }
 
-  async getConduct(studentExternalId: string, month: number, year: number): Promise<IAPISuccessResponse> {
-    const student = await prisma.student.findFirst({
-      where: { externalId: studentExternalId, isActive: true, deletedAt: null },
-    });
+  async saveClassConduct(
+    classExternalId: string,
+    { month, year, entries }: ISaveClassConduct,
+    userExternalId: string,
+  ): Promise<IAPISuccessResponse> {
+    const classData = await this.findClass(classExternalId);
 
-    if (!student) {
+    const students = await prisma.student.findMany({
+      where: {
+        classId: classData.id,
+        isActive: true,
+        deletedAt: null,
+        externalId: { in: entries.map((entry) => entry.studentExternalId) },
+      },
+      select: { id: true, externalId: true },
+    });
+    const byExternalId = new Map(students.map((student) => [student.externalId, student.id]));
+
+    if (entries.some((entry) => !byExternalId.has(entry.studentExternalId))) {
       throw ApiError.format('', ConductMessages.STUDENT_NOT_FOUND);
     }
 
-    const conduct = await prisma.studentConduct.findFirst({
-      where: { studentId: student.id, month, year, deletedAt: null },
-      select: CONDUCT_PUBLIC_FIELDS,
-    });
+    await prisma.$transaction(
+      entries.map(({ studentExternalId, behaviour, uniformCleanliness }) => {
+        const studentId = byExternalId.get(studentExternalId)!;
+
+        return prisma.studentConduct.upsert({
+          where: { studentId_month_year: { studentId, month, year } },
+          create: { studentId, month, year, behaviour, uniformCleanliness, createdBy: userExternalId },
+          update: { behaviour, uniformCleanliness, deletedAt: null, updatedBy: userExternalId },
+        });
+      }),
+    );
 
     return {
-      keyName: 'conduct',
-      conduct: conduct ? { ...conduct, studentExternalId } : null,
-      code: ConductMessages.CONDUCT_FETCHED_SUCCESSFULLY.code,
-      message: ConductMessages.CONDUCT_FETCHED_SUCCESSFULLY.message,
+      keyName: 'classConduct',
+      classConduct: { saved: entries.length },
+      code: ConductMessages.CONDUCT_UPSERTED_SUCCESSFULLY.code,
+      message: ConductMessages.CONDUCT_UPSERTED_SUCCESSFULLY.message,
       success: true,
     };
   }
