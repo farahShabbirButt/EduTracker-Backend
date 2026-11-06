@@ -16,10 +16,11 @@ async function seedAdmin() {
         );
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    // Any user counts: the admin may have changed their email since ADMIN_EMAIL was set
+    const existing = await prisma.user.findFirst({ select: { email: true } });
     if (existing) {
         console.info(
-            `✅ Admin already exists: ${email} — skipping (password unchanged)`
+            `✅ Admin already exists: ${existing.email} — skipping (password unchanged)`
         );
         return;
     }

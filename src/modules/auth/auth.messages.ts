@@ -54,3 +54,28 @@ export const PASSWORD_RESET_SUCCESSFUL = Object.freeze({
   message: 'Password has been reset — please log in with your new password',
   code: StatusCodes.OK,
 });
+
+export const PROFILE_UPDATED = Object.freeze({
+  message: 'Your details are saved',
+  code: StatusCodes.OK,
+});
+
+export const EMAIL_TAKEN = Object.freeze({
+  message: 'That email is already used by another account',
+  code: StatusCodes.CONFLICT,
+});
+
+export const PASSWORD_CHANGED = Object.freeze({
+  message: 'Password changed',
+  code: StatusCodes.OK,
+});
+
+export const CURRENT_PASSWORD_WRONG = Object.freeze({
+  message: 'Your current password is not correct',
+  code: StatusCodes.BAD_REQUEST,
+});
+
+export const PASSWORD_UNCHANGED = Object.freeze({
+  message: 'Choose a password different from your current one',
+  code: StatusCodes.BAD_REQUEST,
+});
