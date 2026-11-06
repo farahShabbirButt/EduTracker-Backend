@@ -5,6 +5,7 @@ import { DashboardMessages, IAttentionItem } from './index.js';
 // Enough to act on: the rest appear as these are fixed
 const MAX_BLANK_STUDENTS = 3;
 const MAX_ATTENTION = 12;
+const MAX_NAMED_CLASSES = 3;
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
@@ -46,6 +47,8 @@ class DashboardService {
     const progress = await getTestProgress(tests.map((test) => test.id));
 
     const attention: IAttentionItem[] = [];
+    // Setup gaps block every card, so they stay on the list however long it gets
+    const setupGaps: IAttentionItem[] = [];
 
     for (const test of tests) {
       const result = progress.get(test.id);
@@ -87,14 +90,21 @@ class DashboardService {
       }
     });
 
-    classes
-      .filter((classRow) => classRow._count.subjectClasses === 0)
-      .forEach((classRow) => {
-        attention.push({ title: 'No subjects assigned', detail: classRow.name, link: 'subjects' });
+    const noSubjects = classes.filter((classRow) => classRow._count.subjectClasses === 0);
+
+    if (noSubjects.length > 0) {
+      const names = noSubjects.slice(0, MAX_NAMED_CLASSES).map((classRow) => classRow.name);
+      const others = noSubjects.length - names.length;
+
+      setupGaps.push({
+        title: `${noSubjects.length} ${noSubjects.length === 1 ? 'class has' : 'classes have'} no subjects`,
+        detail: others > 0 ? `${names.join(', ')} and ${others} more` : names.join(', '),
+        link: 'subjects',
       });
+    }
 
     if (gradeBands === 0) {
-      attention.push({ title: 'No grade boundaries set', detail: 'Cards need them to print', link: 'grades' });
+      setupGaps.push({ title: 'No grade boundaries set', detail: 'Cards need them to print', link: 'grades' });
     }
 
     const totals = tests.reduce(
@@ -119,7 +129,7 @@ class DashboardService {
           entered: progress.get(test.id)?.entered ?? 0,
           expected: progress.get(test.id)?.expected ?? 0,
         })),
-        attention: attention.slice(0, MAX_ATTENTION),
+        attention: [...setupGaps, ...attention].slice(0, MAX_ATTENTION),
         setup: {
           classes: classes.length > 0,
           subjects: assignments > 0,
