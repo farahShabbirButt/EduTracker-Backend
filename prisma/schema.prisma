@@ -124,6 +124,8 @@ model StudentSubject {
 
   student      Student      @relation(fields: [studentId], references: [id])
   subjectClass SubjectClass @relation(fields: [subjectClassId], references: [id])
+
+  @@unique([studentId, subjectClassId], map: "StudentSubject_student_link")
 }
 
 model Test {

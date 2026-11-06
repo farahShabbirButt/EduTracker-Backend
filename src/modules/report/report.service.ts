@@ -200,6 +200,8 @@ class ReportService {
       conduct: {
         behaviour: conductRow?.behaviour ?? null,
         uniformCleanliness: conductRow?.uniformCleanliness ?? null,
+        month: conductRow?.month ?? null,
+        year: conductRow?.year ?? null,
       },
       position: await this.computePosition(student.id, period, cardTests),
       missingMarks,

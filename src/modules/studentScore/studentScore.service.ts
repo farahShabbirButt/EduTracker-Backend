@@ -120,7 +120,7 @@ class StudentScoreService {
     };
   }
 
-  async saveMarksGrid(payload: ISaveMarksGrid): Promise<IAPISuccessResponse> {
+  async saveMarksGrid(payload: ISaveMarksGrid, userExternalId: string): Promise<IAPISuccessResponse> {
     const { classData, testData } = await this.findClassAndTest(payload.classExternalId, payload.testExternalId);
     const { testSubjects } = testData;
 
@@ -163,13 +163,13 @@ class StudentScoreService {
         marksObtained === null
           ? prisma.studentScore.updateMany({
               where: { studentId, testSubjectId, ...LIVE_SCORES },
-              data: { deletedAt: new Date() },
+              data: { deletedAt: new Date(), updatedBy: userExternalId },
             })
           : // deletedAt: a mark that was cleared earlier can be entered again
             prisma.studentScore.upsert({
               where: { studentId_testSubjectId: { studentId, testSubjectId } },
-              create: { studentId, testSubjectId, marksObtained },
-              update: { marksObtained, deletedAt: null },
+              create: { studentId, testSubjectId, marksObtained, createdBy: userExternalId },
+              update: { marksObtained, deletedAt: null, updatedBy: userExternalId },
             }),
       ),
     );

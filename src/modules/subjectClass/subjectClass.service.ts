@@ -84,6 +84,7 @@ class SubjectClassService {
       const toCreate = toAdd.filter((subjectId) => !linkToRestore.has(subjectId));
       if (toCreate.length > 0) {
         await tx.subjectClass.createMany({
+          skipDuplicates: true,
           data: toCreate.map((subjectId) => ({
             classId: classEntity.id,
             subjectId,

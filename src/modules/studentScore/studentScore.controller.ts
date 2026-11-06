@@ -14,7 +14,7 @@ class StudentScoreController extends BaseController {
 
   saveMarksGrid = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await StudentScoreService.saveMarksGrid(req.body);
+      const result = await StudentScoreService.saveMarksGrid(req.body, req.user!.externalId);
       return this.sendSuccessResponse(res, result);
     } catch (error) {
       return next(error);
