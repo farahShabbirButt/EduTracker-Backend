@@ -60,6 +60,24 @@ class AuthController extends BaseController {
     }
   };
 
+  updateProfile = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await AuthService.updateProfile(req.user!.externalId, req.body);
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  changePassword = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await AuthService.changePassword(req.user!.externalId, req.body);
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return next(error);
+    }
+  };
+
   forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await AuthService.forgotPassword(req.body);

@@ -13,6 +13,17 @@ export interface IResetPasswordPayload {
   newPassword: string;
 }
 
+export interface IUpdateProfilePayload {
+  name: string;
+  email: string;
+  currentPassword?: string;
+}
+
+export interface IChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
 // What we sign into the JWT — kept small (no PII beyond email).
 export interface IJwtPayload {
   userId: number;

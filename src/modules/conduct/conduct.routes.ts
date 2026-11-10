@@ -4,11 +4,15 @@ import { ConductController, ConductValidation } from './index.js';
 
 const router = Router();
 
-router.put(
-  '/student/:studentExternalId',
-  ZodValidator(ConductValidation.upsertConductValidation),
-  ConductController.upsert,
+router.get(
+  '/class/:classExternalId',
+  ZodValidator(ConductValidation.getClassConductValidation),
+  ConductController.getForClass,
 );
-router.get('/student/:studentExternalId', ZodValidator(ConductValidation.getConductValidation), ConductController.get);
+router.put(
+  '/class/:classExternalId',
+  ZodValidator(ConductValidation.saveClassConductValidation),
+  ConductController.saveForClass,
+);
 
 export default router;

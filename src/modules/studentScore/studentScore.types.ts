@@ -1,15 +1,16 @@
-export interface IStudentScoreItem {
+export interface IMarksGridCell {
   studentExternalId: string;
+  subjectExternalId: string;
   marksObtained: number | null;
 }
-export interface ICreateMarksEntry {
+
+export interface ISaveMarksGrid {
   classExternalId: string;
   testExternalId: string;
-  subjectExternalId: string;
-  scores: IStudentScoreItem[];
+  marks: IMarksGridCell[];
 }
-export interface IGetMarksEntryQuery {
+
+export interface IGetMarksGridQuery {
   classExternalId: string;
-  subjectExternalId: string;
   testExternalId: string;
 }

@@ -58,9 +58,7 @@ class StudentSubjectService {
 
     // Assign subjects
     if (studentSubjectsData.length) {
-      await tx.studentSubject.createMany({
-        data: studentSubjectsData,
-      });
+      await tx.studentSubject.createMany({ skipDuplicates: true, data: studentSubjectsData });
     }
   }
 
@@ -89,7 +87,7 @@ class StudentSubjectService {
     });
 
     if (missing.length > 0) {
-      await tx.studentSubject.createMany({ data: missing });
+      await tx.studentSubject.createMany({ skipDuplicates: true, data: missing });
     }
   }
 }

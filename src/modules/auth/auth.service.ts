@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import prisma from '../../lib/prisma.js';
+import prisma, { rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { env } from '../../lib/env.js';
 import { EmailService } from '../../lib/email.js';
@@ -13,6 +13,8 @@ import type {
   IAuthUser,
   IForgotPasswordPayload,
   IResetPasswordPayload,
+  IUpdateProfilePayload,
+  IChangePasswordPayload,
 } from './auth.types.js';
 
 // A bcrypt hash of a value no one can supply. When the email is unknown we still
@@ -77,6 +79,85 @@ class AuthService {
       user: toAuthUser(user),
       code: AuthMessages.ME_FETCHED_SUCCESSFULLY.code,
       message: AuthMessages.ME_FETCHED_SUCCESSFULLY.message,
+      success: true,
+    };
+  }
+
+  async updateProfile(externalId: string, payload: IUpdateProfilePayload): Promise<IAPISuccessResponse> {
+    const user = await prisma.user.findUnique({ where: { externalId } });
+
+    if (!user) {
+      throw ApiError.format('', AuthMessages.USER_NOT_FOUND);
+    }
+
+    const emailChanging = payload.email !== user.email;
+
+    // The email signs in and receives reset links, so changing it is as sensitive as the password
+    if (emailChanging && !(await bcrypt.compare(payload.currentPassword ?? '', user.passwordHash))) {
+      throw ApiError.format('', AuthMessages.CURRENT_PASSWORD_WRONG);
+    }
+
+    if (emailChanging) {
+      const taken = await prisma.user.findUnique({ where: { email: payload.email }, select: { id: true } });
+
+      if (taken) {
+        throw ApiError.format('', AuthMessages.EMAIL_TAKEN);
+      }
+    }
+
+    const updated = await prisma
+      .$transaction(async (tx) => {
+        if (emailChanging) {
+          // A link sent to the old address must stop working
+          await tx.passwordResetToken.updateMany({
+            where: { userId: user.id, usedAt: null },
+            data: { usedAt: new Date() },
+          });
+        }
+        return tx.user.update({ where: { id: user.id }, data: { name: payload.name, email: payload.email } });
+      })
+      .catch(rethrowUniqueViolation(AuthMessages.EMAIL_TAKEN));
+
+    return {
+      keyName: 'user',
+      user: toAuthUser(updated),
+      code: AuthMessages.PROFILE_UPDATED.code,
+      message: AuthMessages.PROFILE_UPDATED.message,
+      success: true,
+    };
+  }
+
+  async changePassword(externalId: string, payload: IChangePasswordPayload): Promise<IAPISuccessResponse> {
+    const user = await prisma.user.findUnique({ where: { externalId } });
+
+    if (!user) {
+      throw ApiError.format('', AuthMessages.USER_NOT_FOUND);
+    }
+
+    if (!(await bcrypt.compare(payload.currentPassword, user.passwordHash))) {
+      throw ApiError.format('', AuthMessages.CURRENT_PASSWORD_WRONG);
+    }
+
+    if (payload.currentPassword === payload.newPassword) {
+      throw ApiError.format('', AuthMessages.PASSWORD_UNCHANGED);
+    }
+
+    const passwordHash = await bcrypt.hash(payload.newPassword, 10);
+
+    // A reset link still open would otherwise undo this change
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+      prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+    ]);
+
+    return {
+      keyName: 'passwordChange',
+      passwordChange: { changed: true },
+      code: AuthMessages.PASSWORD_CHANGED.code,
+      message: AuthMessages.PASSWORD_CHANGED.message,
       success: true,
     };
   }

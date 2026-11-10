@@ -13,5 +13,17 @@ router.post('/reset-password', ZodValidator(AuthValidation.resetPasswordValidati
 // authMiddleware is applied per-route, not to the whole router: login, logout,
 // and password reset must stay reachable while logged out.
 router.get('/me', authMiddleware, AuthController.me);
+router.put(
+  '/profile',
+  authMiddleware,
+  ZodValidator(AuthValidation.updateProfileValidation),
+  AuthController.updateProfile,
+);
+router.put(
+  '/password',
+  authMiddleware,
+  ZodValidator(AuthValidation.changePasswordValidation),
+  AuthController.changePassword,
+);
 
 export default router;

@@ -1,12 +1,10 @@
-import prisma from '../../lib/prisma.js';
+import prisma, { LIVE_SCORES } from '../../lib/prisma.js';
+import { owesTest } from '../../lib/marksDue.js';
 import { ApiError } from '../../common/responses/index.js';
-import { ICreateMarksEntry, IGetMarksEntryQuery, StudentScoreMessages } from './index.js';
+import { IGetMarksGridQuery, ISaveMarksGrid, StudentScoreMessages } from './index.js';
 
 class StudentScoreService {
-  async enterMarks(payload: ICreateMarksEntry): Promise<IAPISuccessResponse> {
-    const { classExternalId, testExternalId, subjectExternalId, scores } = payload;
-
-    //Validate class
+  private async findClassAndTest(classExternalId: string, testExternalId: string) {
     const classData = await prisma.class.findUnique({
       where: { externalId: classExternalId, isActive: true, deletedAt: null },
     });
@@ -15,203 +13,172 @@ class StudentScoreService {
       throw ApiError.format('', StudentScoreMessages.CLASS_NOT_FOUND);
     }
 
-    //Validate test
     const testData = await prisma.test.findUnique({
       where: { externalId: testExternalId, isActive: true, deletedAt: null },
-    });
-
-    if (!testData || testData.classId !== classData.id) {
-      throw ApiError.format('', StudentScoreMessages.TEST_NOT_FOUND);
-    }
-
-    // Resolve the TestSubject once, up front — the per-test-per-subject config row
-    const testSubject = await prisma.testSubject.findFirst({
-      where: {
-        testId: testData.id,
-        deletedAt: null,
-        subjectClass: {
-          classId: classData.id,
-          subject: { externalId: subjectExternalId, isActive: true, deletedAt: null },
+      include: {
+        testSubjects: {
+          where: { deletedAt: null },
+          include: { subjectClass: { include: { subject: true } } },
+          orderBy: { id: 'asc' },
         },
       },
     });
 
-    if (!testSubject) {
-      throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_IN_TEST);
-    }
-
-    // Validate every score BEFORE opening the transaction — a failure halfway through
-    // must not leave earlier writes committed.
-    for (const item of scores) {
-      if (item.marksObtained === null) continue;
-      if (item.marksObtained < 0) {
-        throw ApiError.format('', StudentScoreMessages.MARKS_NEGATIVE);
-      }
-      if (item.marksObtained > testSubject.maxMarks) {
-        throw ApiError.format('', StudentScoreMessages.MARKS_EXCEED_TOTAL);
-      }
-    }
-
-    // Resolve students in one query (replaces the per-student N+1 lookup)
-    const students = await prisma.student.findMany({
-      where: {
-        externalId: { in: scores.map((s) => s.studentExternalId) },
-        isActive: true,
-        deletedAt: null,
-        OR: [{ classId: classData.id }, { scores: { some: { testSubjectId: testSubject.id } } }],
-      },
-    });
-    const byExternalId = new Map(students.map((s) => [s.externalId, s.id]));
-
-    // Students that don't belong to this class are silently skipped, but counted so a
-    // typo in the request is not invisible.
-    const skippedStudentsCount = scores.filter((item) => !byExternalId.has(item.studentExternalId)).length;
-
-    await prisma.$transaction(
-      scores
-        .filter((item) => byExternalId.has(item.studentExternalId))
-        .map(({ studentExternalId, marksObtained }) => {
-          const studentId = byExternalId.get(studentExternalId)!;
-
-          if (marksObtained === null) {
-            return prisma.studentScore.updateMany({
-              where: { studentId, testSubjectId: testSubject.id, deletedAt: null },
-              data: { deletedAt: new Date() },
-            });
-          }
-
-          // deletedAt: a mark that was cleared earlier can be entered again
-          return prisma.studentScore.upsert({
-            where: { studentId_testSubjectId: { studentId, testSubjectId: testSubject.id } },
-            create: { studentId, testSubjectId: testSubject.id, marksObtained },
-            update: { marksObtained, deletedAt: null },
-          });
-        }),
-    );
-
-    return {
-      keyName: 'studentScores',
-      studentScores: { skippedStudentsCount },
-      code: StudentScoreMessages.MARKS_SAVED_SUCCESSFULLY.code,
-      message: StudentScoreMessages.MARKS_SAVED_SUCCESSFULLY.message,
-      success: true,
-    };
-  }
-
-  async getMarksEntryStudents(query: IGetMarksEntryQuery): Promise<IAPISuccessResponse> {
-    const { classExternalId, subjectExternalId, testExternalId } = query;
-
-    // Validate Class
-    const classData = await prisma.class.findUnique({
-      where: {
-        externalId: classExternalId,
-        isActive: true,
-        deletedAt: null,
-      },
-    });
-
-    if (!classData) {
-      throw ApiError.format('', StudentScoreMessages.CLASS_NOT_FOUND);
-    }
-
-    // Validate Test
-    const testData = await prisma.test.findUnique({
-      where: {
-        externalId: testExternalId,
-        isActive: true,
-        deletedAt: null,
-      },
-    });
-
     if (!testData || testData.classId !== classData.id) {
       throw ApiError.format('', StudentScoreMessages.TEST_NOT_FOUND);
     }
 
-    // The test's own row, so a subject later removed from the class stays markable here
-    const testSubject = await prisma.testSubject.findFirst({
-      where: {
-        testId: testData.id,
-        deletedAt: null,
-        subjectClass: { subject: { externalId: subjectExternalId, isActive: true, deletedAt: null } },
-      },
-      include: { subjectClass: { include: { subject: true } } },
-    });
+    return { classData, testData };
+  }
 
-    if (!testSubject) {
-      throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_IN_TEST);
-    }
-
-    const { subject } = testSubject.subjectClass;
-    const takesSubject = { some: { subjectClass: { subjectId: subject.id } } };
-
-    // Students taking the subject, plus anyone with a mark on it who has since left the class
-    // or the subject: that mark is still on their card, so it must stay visible and fixable.
-    // A cleared mark keeps them listed, so a mistaken clear can be undone.
-    const students = await prisma.student.findMany({
+  // The class's students taking anything on the test, plus anyone holding a saved or cleared
+  // mark on it: that mark is still on their card, so it must stay visible and fixable.
+  private findGridStudents(classId: number, testSubjectIds: number[], subjectIds: number[]) {
+    return prisma.student.findMany({
       where: {
         isActive: true,
         deletedAt: null,
         OR: [
-          { classId: classData.id, studentSubjects: takesSubject },
-          { scores: { some: { testSubjectId: testSubject.id } } },
+          { classId, studentSubjects: { some: { subjectClass: { subjectId: { in: subjectIds } } } } },
+          { scores: { some: { testSubjectId: { in: testSubjectIds } } } },
         ],
       },
-      include: { studentSubjects: { where: { subjectClass: { subjectId: subject.id } }, select: { id: true } } },
-      orderBy: {
-        rollNumber: 'asc',
-      },
-    });
-
-    // Fetch existing scores for this test & subject
-    const scores = await prisma.studentScore.findMany({
-      where: {
-        testSubjectId: testSubject.id,
-        deletedAt: null,
-      },
-    });
-
-    //Create map for quick lookup
-    const scoreMap = new Map<number, number>();
-
-    scores.forEach((score) => {
-      scoreMap.set(score.studentId, score.marksObtained);
-    });
-
-    // Merge students with marks — explicit projection so internal id/classId never leave the service layer
-    const formattedStudents = students.map((student) => ({
-      externalId: student.externalId,
-      firstName: student.firstName,
-      lastName: student.lastName,
-      fatherName: student.fatherName,
-      rollNumber: student.rollNumber,
-      marksObtained: scoreMap.get(student.id) ?? null,
-      leftSubject: student.classId !== classData.id || student.studentSubjects.length === 0,
-    }));
-
-    // Return structured response
-    return {
-      keyName: 'marksEntry',
-      marksEntry: {
-        class: {
-          externalId: classData.externalId,
-          name: classData.name,
+      include: {
+        studentSubjects: { select: { subjectClass: { select: { subjectId: true } } } },
+        scores: {
+          where: { testSubjectId: { in: testSubjectIds } },
+          select: { testSubjectId: true, marksObtained: true, deletedAt: true },
         },
+      },
+    });
+  }
+
+  async getMarksGrid({ classExternalId, testExternalId }: IGetMarksGridQuery): Promise<IAPISuccessResponse> {
+    const { classData, testData } = await this.findClassAndTest(classExternalId, testExternalId);
+    const { testSubjects } = testData;
+
+    const students = await this.findGridStudents(
+      classData.id,
+      testSubjects.map((ts) => ts.id),
+      testSubjects.map((ts) => ts.subjectClass.subjectId),
+    );
+
+    // In register order: 2 comes before 10
+    students.sort((a, b) => a.rollNumber.localeCompare(b.rollNumber, undefined, { numeric: true }));
+
+    const rows = students.map((student) => {
+      const inClass = student.classId === classData.id;
+      const taken = new Set(student.studentSubjects.map((ss) => ss.subjectClass.subjectId));
+      const live = new Map(
+        student.scores.filter((s) => s.deletedAt === null).map((s) => [s.testSubjectId, s.marksObtained]),
+      );
+      const owes = inClass && owesTest(student.classSince, testData, live.size > 0);
+
+      return {
+        externalId: student.externalId,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        rollNumber: student.rollNumber,
+        leftClass: !inClass,
+        cells: Object.fromEntries(
+          testSubjects.map((ts) => {
+            const subjectId = ts.subjectClass.subjectId;
+            const hasRow = student.scores.some((s) => s.testSubjectId === ts.id);
+            return [
+              ts.subjectClass.subject.externalId,
+              {
+                marksObtained: live.get(ts.id) ?? null,
+                editable: hasRow || (inClass && taken.has(subjectId)),
+                owed: owes && taken.has(subjectId),
+              },
+            ];
+          }),
+        ),
+      };
+    });
+
+    return {
+      keyName: 'marksGrid',
+      marksGrid: {
+        class: { externalId: classData.externalId, name: classData.name },
         test: {
           externalId: testData.externalId,
           name: testData.name,
-          totalMarks: testData.totalMarks,
-          maxMarks: testSubject.maxMarks,
           month: testData.month,
           year: testData.year,
         },
-        subject: {
-          externalId: subject.externalId,
-          name: subject.name,
-        },
-        students: formattedStudents,
+        subjects: testSubjects.map((ts) => ({
+          externalId: ts.subjectClass.subject.externalId,
+          name: ts.subjectClass.subject.name,
+          maxMarks: ts.maxMarks,
+        })),
+        students: rows,
       },
       code: StudentScoreMessages.STUDENT_SCORE_FETCHED_SUCCESSFULLY.code,
       message: StudentScoreMessages.STUDENT_SCORE_FETCHED_SUCCESSFULLY.message,
+      success: true,
+    };
+  }
+
+  async saveMarksGrid(payload: ISaveMarksGrid, userExternalId: string): Promise<IAPISuccessResponse> {
+    const { classData, testData } = await this.findClassAndTest(payload.classExternalId, payload.testExternalId);
+    const { testSubjects } = testData;
+
+    const bySubject = new Map(testSubjects.map((ts) => [ts.subjectClass.subject.externalId, ts]));
+    const students = await this.findGridStudents(
+      classData.id,
+      testSubjects.map((ts) => ts.id),
+      testSubjects.map((ts) => ts.subjectClass.subjectId),
+    );
+    const byExternalId = new Map(students.map((s) => [s.externalId, s]));
+
+    // Every mark is checked before anything is written: it's all saved, or none of it
+    const writes = payload.marks.map(({ studentExternalId, subjectExternalId, marksObtained }) => {
+      const student = byExternalId.get(studentExternalId);
+      const testSubject = bySubject.get(subjectExternalId);
+
+      if (!testSubject) {
+        throw ApiError.format('', StudentScoreMessages.SUBJECT_NOT_IN_TEST);
+      }
+
+      const editable =
+        student &&
+        (student.scores.some((s) => s.testSubjectId === testSubject.id) ||
+          (student.classId === classData.id &&
+            student.studentSubjects.some((ss) => ss.subjectClass.subjectId === testSubject.subjectClass.subjectId)));
+
+      if (!student || !editable) {
+        throw ApiError.format('', StudentScoreMessages.STUDENT_NOT_ON_SUBJECT);
+      }
+
+      if (marksObtained !== null && marksObtained > testSubject.maxMarks) {
+        throw ApiError.format('', StudentScoreMessages.MARKS_EXCEED_TOTAL);
+      }
+
+      return { studentId: student.id, testSubjectId: testSubject.id, marksObtained };
+    });
+
+    await prisma.$transaction(
+      writes.map(({ studentId, testSubjectId, marksObtained }) =>
+        marksObtained === null
+          ? prisma.studentScore.updateMany({
+              where: { studentId, testSubjectId, ...LIVE_SCORES },
+              data: { deletedAt: new Date(), updatedBy: userExternalId },
+            })
+          : // deletedAt: a mark that was cleared earlier can be entered again
+            prisma.studentScore.upsert({
+              where: { studentId_testSubjectId: { studentId, testSubjectId } },
+              create: { studentId, testSubjectId, marksObtained, createdBy: userExternalId },
+              update: { marksObtained, deletedAt: null, updatedBy: userExternalId },
+            }),
+      ),
+    );
+
+    return {
+      keyName: 'studentScores',
+      studentScores: { saved: writes.length },
+      code: StudentScoreMessages.MARKS_SAVED_SUCCESSFULLY.code,
+      message: StudentScoreMessages.MARKS_SAVED_SUCCESSFULLY.message,
       success: true,
     };
   }
