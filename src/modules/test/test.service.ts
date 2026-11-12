@@ -12,12 +12,39 @@ const TEST_PUBLIC_FIELDS = {
   testType: true,
   month: true,
   year: true,
+  testDate: true,
   totalMarks: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
   class: { select: { externalId: true, name: true } },
 } satisfies Prisma.TestSelect;
+
+// The date leaves as YYYY-MM-DD, like the school year start
+const toPublicTest = <T extends { testDate: Date | null }>(test: T) => ({
+  ...test,
+  testDate: test.testDate ? test.testDate.toISOString().slice(0, 10) : null,
+});
+
+// Where a test sits in time. A session test is placed by its day, and its month and year
+// come from it, so conduct, the dashboard and the uniqueness rule keep working by month.
+const placeTest = (
+  testType: TestType,
+  given: { month?: number; year?: number; testDate?: string | null },
+): { month: number; year: number; testDate: Date | null } => {
+  if (testType === TestType.SESSION) {
+    if (!given.testDate) {
+      throw ApiError.format('', TestMessages.SESSION_DATE_REQUIRED);
+    }
+    const [year, month] = given.testDate.split('-').map(Number);
+    return { month, year, testDate: new Date(given.testDate) };
+  }
+
+  if (!given.month || !given.year) {
+    throw ApiError.format('', TestMessages.MONTH_YEAR_REQUIRED);
+  }
+  return { month: given.month, year: given.year, testDate: null };
+};
 
 class TestService {
   // Same shape as the list
@@ -51,20 +78,16 @@ class TestService {
         throw ApiError.format('', TestMessages.CLASS_NOT_FOUND);
       }
 
-      // 2️⃣ Validate month/year for MONTHLY
-      if (payload.testType === TestType.MONTHLY) {
-        if (!payload.month || !payload.year) {
-          throw ApiError.format('', TestMessages.MONTH_YEAR_REQUIRED);
-        }
-      }
+      // 2️⃣ Its month and year, from the date for a session test
+      const when = placeTest(payload.testType, payload);
 
       // 3️⃣ Check duplicate test
       const existingTest = await tx.test.findFirst({
         where: {
           classId: classData.id,
           name: payload.name,
-          month: payload.month,
-          year: payload.year,
+          month: when.month,
+          year: when.year,
           testType: payload.testType,
           isActive: true,
           deletedAt: null,
@@ -107,8 +130,7 @@ class TestService {
           data: {
             name: payload.name,
             testType: payload.testType,
-            month: payload.month ?? null,
-            year: payload.year ?? null,
+            ...when,
             totalMarks,
             classId: classData.id,
           },
@@ -132,7 +154,7 @@ class TestService {
 
       return {
         keyName: 'test',
-        test,
+        test: toPublicTest(test),
         code: TestMessages.TEST_CREATED_SUCCESSFULLY.code,
         message: TestMessages.TEST_CREATED_SUCCESSFULLY.message,
         success: true,
@@ -166,17 +188,30 @@ class TestService {
       classId = classData.id;
     }
 
+    const testType = payload.testType ?? existingTest.testType;
+
     // A test with marks belongs to the class that sat it: moving it would put those marks
     // under the wrong class on the card and leave the new class's students with gaps.
-    if (classId !== existingTest.classId) {
+    // Its type is fixed the same way, or its marks would move to the other kind of card.
+    if (classId !== existingTest.classId || testType !== existingTest.testType) {
       const markCount = await prisma.studentScore.count({
         where: { ...LIVE_SCORES, testSubject: { testId: existingTest.id } },
       });
 
       if (markCount > 0) {
-        throw ApiError.format('', TestMessages.TEST_CLASS_LOCKED);
+        throw ApiError.format(
+          '',
+          classId !== existingTest.classId ? TestMessages.TEST_CLASS_LOCKED : TestMessages.TEST_TYPE_LOCKED,
+        );
       }
     }
+
+    // Fields left out keep their saved values
+    const when = placeTest(testType, {
+      month: payload.month ?? existingTest.month,
+      year: payload.year ?? existingTest.year,
+      testDate: payload.testDate ?? existingTest.testDate?.toISOString().slice(0, 10),
+    });
 
     // Duplicate check (exclude current test). Fields left out of the payload keep their saved
     // values: Prisma ignores `undefined`, which would otherwise match any test in the class.
@@ -185,9 +220,9 @@ class TestService {
         id: { not: existingTest.id },
         classId: classId,
         name: payload.name ?? existingTest.name,
-        month: payload.month ?? existingTest.month,
-        year: payload.year ?? existingTest.year,
-        testType: payload.testType ?? existingTest.testType,
+        month: when.month,
+        year: when.year,
+        testType,
         isActive: true,
         deletedAt: null,
       },
@@ -204,9 +239,8 @@ class TestService {
           where: { id: existingTest.id },
           data: {
             name: payload.name,
-            testType: payload.testType,
-            month: payload.month,
-            year: payload.year,
+            testType,
+            ...when,
             totalMarks: payload.totalMarks,
             classId: classId,
           },
@@ -222,7 +256,7 @@ class TestService {
 
     return this.withProgress({
       keyName: 'test',
-      test: updatedTest,
+      test: toPublicTest(updatedTest),
       code: TestMessages.TEST_UPDATED_SUCCESSFULLY.code,
       message: TestMessages.TEST_UPDATED_SUCCESSFULLY.message,
       success: true,
@@ -291,8 +325,8 @@ class TestService {
     const tests = await prisma.test.findMany({
       where: whereCondition,
       select: { ...TEST_PUBLIC_FIELDS, id: true },
-      // id breaks ties between tests in the same month
-      orderBy: [{ year: 'desc' }, { month: 'desc' }, { id: 'desc' }],
+      // A session test's day, then id, break ties between tests in the same month
+      orderBy: [{ year: 'desc' }, { month: 'desc' }, { testDate: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
     });
 
     const progress = await getTestProgress(tests.map((test) => test.id));
@@ -300,7 +334,7 @@ class TestService {
     return {
       keyName: 'tests',
       tests: tests.map(({ id, ...test }) => ({
-        ...test,
+        ...toPublicTest(test),
         marksEntered: progress.get(id)?.entered ?? 0,
         marksExpected: progress.get(id)?.expected ?? 0,
       })),
@@ -321,7 +355,7 @@ class TestService {
 
     return {
       keyName: 'test',
-      test,
+      test: toPublicTest(test),
       code: TestMessages.TEST_FETCHED_SUCCESSFULLY.code,
       message: TestMessages.TEST_FETCHED_SUCCESSFULLY.message,
       success: true,

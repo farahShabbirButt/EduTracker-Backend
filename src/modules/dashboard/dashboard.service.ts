@@ -32,7 +32,8 @@ class DashboardService {
       prisma.gradeScale.count({ where: { deletedAt: null } }),
       prisma.subjectClass.count({ where: { deletedAt: null } }),
       prisma.test.findMany({
-        where: { ...live, month, year, testType: 'MONTHLY', class: { deletedAt: null } },
+        // Session tests dated this month count as well
+        where: { ...live, month, year, class: { deletedAt: null } },
         select: {
           id: true,
           externalId: true,

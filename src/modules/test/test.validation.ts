@@ -5,37 +5,51 @@ const noRepeatedSubject = (subjects: { subjectExternalId: string }[]) =>
   new Set(subjects.map((s) => s.subjectExternalId)).size === subjects.length;
 const REPEATED_SUBJECT = { message: 'A subject can only be on a test once' };
 
+// A real day, YYYY-MM-DD. Its month and year become the test's.
+const testDate = z.iso.date('Test date must be a valid date (YYYY-MM-DD)');
+
 export const createTestValidation = z.object({
-  body: z.object({
-    name: z
-      .string({
-        error: (iss) => (iss.input === undefined ? 'Test name is required.' : 'First name should be string.'),
-      })
-      .trim()
-      .min(1, 'Test name is required')
-      .max(50),
+  body: z
+    .object({
+      name: z
+        .string({
+          error: (iss) => (iss.input === undefined ? 'Test name is required.' : 'First name should be string.'),
+        })
+        .trim()
+        .min(1, 'Test name is required')
+        .max(50),
 
-    testType: z.enum([TestType.MONTHLY, TestType.SESSION], {
-      error: 'Test Type must be either MONTHLY or SESSION',
+      testType: z.enum([TestType.MONTHLY, TestType.SESSION], {
+        error: 'Test Type must be either MONTHLY or SESSION',
+      }),
+
+      month: z.number('Valid Month is required between 1 to 12').int().min(1).max(12).optional(),
+      year: z.number('Valid Year is required between 2000 to 2100').int().min(2000).max(2100).optional(),
+      testDate: testDate.optional(),
+
+      totalMarks: z.number('Totals Marks should be a valid number greater than 0').positive(),
+
+      classExternalId: z.uuid('Class external Id is required.Invalid UUID'),
+
+      subjects: z
+        .array(
+          z.object({
+            subjectExternalId: z.uuid('Invalid subject id'),
+            maxMarks: z.number('Max marks must be a number').int().positive().max(10000),
+          }),
+        )
+        .min(1, 'A test must include at least one subject')
+        .refine(noRepeatedSubject, REPEATED_SUBJECT),
+    })
+    // A session test is placed by its day, a monthly one by its month
+    .superRefine((body, ctx) => {
+      if (body.testType === TestType.SESSION && !body.testDate) {
+        ctx.addIssue({ code: 'custom', path: ['testDate'], message: 'A session test needs its date' });
+      }
+      if (body.testType === TestType.MONTHLY && (body.month === undefined || body.year === undefined)) {
+        ctx.addIssue({ code: 'custom', path: ['month'], message: 'A monthly test needs its month and year' });
+      }
     }),
-
-    month: z.number('Valid Month is required between 1 to 12').int().min(1).max(12),
-    year: z.number('Valid Year is required between 2000 to 2100').int().min(2000).max(2100),
-
-    totalMarks: z.number('Totals Marks should be a valid number greater than 0').positive(),
-
-    classExternalId: z.uuid('Class external Id is required.Invalid UUID'),
-
-    subjects: z
-      .array(
-        z.object({
-          subjectExternalId: z.uuid('Invalid subject id'),
-          maxMarks: z.number('Max marks must be a number').int().positive().max(10000),
-        }),
-      )
-      .min(1, 'A test must include at least one subject')
-      .refine(noRepeatedSubject, REPEATED_SUBJECT),
-  }),
 });
 
 export const updateTestValidation = z.object({
@@ -49,6 +63,7 @@ export const updateTestValidation = z.object({
 
     month: z.number('Valid Month is required between 1 to 12').int().min(1).max(12).optional(),
     year: z.number('Valid Year is required between 2000 to 2100').int().min(2000).max(2100).optional(),
+    testDate: testDate.optional(),
 
     totalMarks: z.number('Totals Marks should be a valid number greater than 0').positive().optional(),
 

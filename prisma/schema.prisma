@@ -135,8 +135,12 @@ model Test {
   name     String
   testType TestType
 
+  // Always filled. A session test's are taken from its date.
   month Int
   year  Int
+
+  // The day a session test was sat, which orders its rows. Monthly tests have none.
+  testDate DateTime? @db.Date
 
   totalMarks Int
   classId    Int
