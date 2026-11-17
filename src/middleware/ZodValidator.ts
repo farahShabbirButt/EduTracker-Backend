@@ -24,12 +24,14 @@ export const ZodValidator = (schema: ZodSchema) => (req: Request, res: Response,
     );
   }
 
-  // Optionally assign back (useful if you use transforms/defaults)
+  // Hand on the parsed values, so coerced numbers, trims and defaults reach the controller
   const data = result.data as Partial<Pick<Request, 'body' | 'params' | 'query'>>;
   if (data.body !== undefined) req.body = data.body;
   if (data.params !== undefined) req.params = data.params;
   if (data.query !== undefined) {
-    Object.assign(req.query, data.query);
+    // Express 5's req.query is a getter that parses the URL again on every read, so assigning
+    // into it is lost. Shadow it on this request instead.
+    Object.defineProperty(req, 'query', { value: data.query, writable: true, configurable: true, enumerable: true });
   }
   return next();
 };

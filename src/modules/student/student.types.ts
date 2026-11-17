@@ -6,6 +6,8 @@ export interface ICreateStudent {
   email?: string;
   contactNo?: string;
   classId: string;
+  // YYYY-MM-DD; today when left out
+  joinedOn?: string;
   createdBy: string;
   isActive: boolean;
   // ONLY elective subjects selected by user
@@ -19,6 +21,8 @@ export interface IUpdateStudent {
   email?: string;
   contactNo?: string;
   classId?: string;
+  // YYYY-MM-DD. Left out, a class move sets it to today
+  joinedOn?: string;
   isActive?: boolean;
   // ONLY elective subjects selected by user
   electiveSubjectIds?: string[];

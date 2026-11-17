@@ -69,6 +69,7 @@ class StudentService {
             email: payload.email,
             contactNo: payload.contactNo,
             classId: classEntity.id,
+            ...(payload.joinedOn && { classSince: localDay(payload.joinedOn) }),
             isActive: payload.isActive ?? true,
             createdBy: payload.createdBy,
           },
@@ -344,10 +345,9 @@ class StudentService {
             fatherName: payload.fatherName,
             email: payload.email,
             contactNo: payload.contactNo,
-            ...(classId !== student.classId && {
-              classId,
-              classSince: new Date(),
-            }),
+            ...(classId !== student.classId && { classId, classSince: new Date() }),
+            // A picked date wins, also over a class move's today
+            ...(payload.joinedOn && { classSince: localDay(payload.joinedOn) }),
           },
         })
         .catch(rethrowUniqueViolation(StudentMessages.STUDENT_ALREADY_EXISTS));
@@ -494,6 +494,10 @@ class StudentService {
     lastName: student.lastName,
     fatherName: student.fatherName,
     rollNumber: student.rollNumber,
+    // Read in the server's time, as lib/marksDue reads it
+    joinedOn: [student.classSince.getFullYear(), student.classSince.getMonth() + 1, student.classSince.getDate()]
+      .map((n) => String(n).padStart(2, '0'))
+      .join('-'),
     email: student.email,
     contactNo: student.contactNo,
     class: {
