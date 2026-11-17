@@ -15,6 +15,14 @@ class ClassController extends BaseController {
       return next(error);
     }
   };
+  import = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await ClassService.importClasses({ ...req.body, createdBy: req.user!.externalId });
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return next(error);
+    }
+  };
   getAll = async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await ClassService.getAllClasses();

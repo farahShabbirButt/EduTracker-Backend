@@ -1,6 +1,15 @@
 import prisma, { LIVE_SCORES, rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
-import { ClassMessages, createClassMapper, ICreateClass, IUpdateClass } from './index.js';
+import { ClassMessages, createClassMapper, ICreateClass, IImportClasses, IUpdateClass } from './index.js';
+import {
+  cleanText,
+  countRows,
+  IImportResult,
+  IImportRowResult,
+  nameKey,
+  plural,
+  refuseProblems,
+} from '../../lib/import.js';
 import { SUBJECT_PUBLIC_FIELDS, SubjectMessages } from '../../modules/subject/index.js';
 import { Prisma } from '@prisma/client';
 
@@ -41,6 +50,57 @@ class ClassService {
       class: createdClass,
       code: ClassMessages.CLASS_CREATED_SUCCESSFULLY.code,
       message: ClassMessages.CLASS_CREATED_SUCCESSFULLY.message,
+      success: true,
+    };
+  }
+
+  // Rows already in the app, or repeated in the file, are skipped rather than refused
+  async importClasses({ dryRun, rows, createdBy }: IImportClasses): Promise<IAPISuccessResponse> {
+    const existing = await prisma.class.findMany({ where: { deletedAt: null }, select: { name: true } });
+    const taken = new Map(existing.map((c) => [nameKey(c.name), c.name]));
+    const seen = new Map<string, number>();
+
+    const results: IImportRowResult[] = rows.map(({ row, name: raw }) => {
+      const name = cleanText(raw);
+      const key = nameKey(name);
+      const result = (status: IImportRowResult['status'], message?: string): IImportRowResult => ({
+        row,
+        label: name,
+        status,
+        messages: message ? [message] : [],
+      });
+
+      if (!name) return result('problem', 'The class name is missing');
+      if (name.length > 100) return result('problem', 'The class name must be less than 100 characters');
+      if (taken.has(key)) return result('exists', `${taken.get(key)} is already there, so it is skipped`);
+      if (seen.has(key)) return result('exists', `Same class as row ${seen.get(key)}, so it is added once`);
+      seen.set(key, row);
+      return result('new');
+    });
+
+    const answer: IImportResult = { dryRun, counts: countRows(results), rows: results };
+
+    if (dryRun) {
+      return { keyName: 'classImport', classImport: answer, ...ClassMessages.CLASS_IMPORT_CHECKED };
+    }
+
+    refuseProblems(results, ClassMessages.CLASS_IMPORT_HAS_PROBLEMS);
+
+    const names = results.filter((r) => r.status === 'new').map((r) => r.label);
+    // One statement, so a long file can't outlast the transaction timeout
+    answer.created = await prisma.class
+      .createManyAndReturn({
+        data: names.map((name) => createClassMapper({ name, createdBy })),
+        select: CLASS_PUBLIC_FIELDS,
+      })
+      .catch(rethrowUniqueViolation(ClassMessages.CLASS_ALREADY_EXISTS));
+
+    const skipped = answer.counts.exists ? `, ${answer.counts.exists} already there` : '';
+    return {
+      keyName: 'classImport',
+      classImport: answer,
+      code: ClassMessages.CLASS_IMPORT_DONE.code,
+      message: `${plural(names.length, 'class', 'classes')} imported${skipped}`,
       success: true,
     };
   }

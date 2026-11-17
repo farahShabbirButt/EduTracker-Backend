@@ -47,6 +47,8 @@ app.use(cors({ origin: env.frontendUrl, credentials: true }));
 app.use(INSTITUTE, express.json({ limit: '500kb' }));
 // A whole class's first marks entry
 app.use(STUDENT_SCORE, express.json({ limit: '1mb' }));
+// An Excel or CSV import, up to 1000 rows (POST /class/import, /subject/import, ...)
+app.use(BASE + '/:resource/import', express.json({ limit: '1mb' }));
 app.use(express.json());
 
 app.get('/', (_req, res) => {

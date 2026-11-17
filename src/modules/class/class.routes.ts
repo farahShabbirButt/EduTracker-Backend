@@ -5,6 +5,7 @@ import { ClassController, ClassValidation } from './index.js';
 const router = Router();
 
 router.get('/:classExternalId/subjects', ClassController.getSubjectsByClass);
+router.post('/import', ZodValidator(ClassValidation.importClassesValidation), ClassController.import);
 router.post('/', ZodValidator(ClassValidation.createClassValidation), ClassController.create);
 
 router.put('/:externalId', ZodValidator(ClassValidation.updateClassValidation), ClassController.update);
