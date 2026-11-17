@@ -9,8 +9,10 @@ export interface ITestSubjectInput {
 export interface ICreateTest extends IBaseEntity {
   name: string;
   testType: TestType;
-  month: number;
-  year: number;
+  month?: number;
+  year?: number;
+  // YYYY-MM-DD, session tests only
+  testDate?: string;
   totalMarks: number;
   classExternalId: string;
   subjects: ITestSubjectInput[];
@@ -21,6 +23,7 @@ export interface IUpdateTest {
   testType?: TestType;
   month?: number;
   year?: number;
+  testDate?: string;
   totalMarks?: number;
   classExternalId?: string;
   subjects?: ITestSubjectInput[];

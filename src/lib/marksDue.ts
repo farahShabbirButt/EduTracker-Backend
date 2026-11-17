@@ -6,10 +6,22 @@ export const monthIndex = ({ month, year }: { month: number; year: number }): nu
 export const joinedMonthIndex = (date: Date): number =>
   monthIndex({ month: date.getMonth() + 1, year: date.getFullYear() });
 
+// The joining day, in the server's time like joinedMonthIndex
+const joinedDay = (date: Date): string =>
+  [date.getFullYear(), date.getMonth() + 1, date.getDate()].map((n) => String(n).padStart(2, '0')).join('-');
+
 // A test from before the student joined the class isn't theirs to sit, unless they have a mark
-// on it. The month is all a test records, so a test in the joining month counts.
-export const owesTest = (classSince: Date, test: { month: number; year: number }, hasMarkOnTest: boolean): boolean =>
-  hasMarkOnTest || monthIndex(test) >= joinedMonthIndex(classSince);
+// on it. A session test has its day; a monthly one records only the month, so a test in the
+// joining month counts.
+export const owesTest = (
+  classSince: Date,
+  test: { month: number; year: number; testDate?: Date | null },
+  hasMarkOnTest: boolean,
+): boolean => {
+  if (hasMarkOnTest) return true;
+  if (test.testDate) return test.testDate.toISOString().slice(0, 10) >= joinedDay(classSince);
+  return monthIndex(test) >= joinedMonthIndex(classSince);
+};
 
 export interface ITestProgress {
   entered: number;
@@ -26,6 +38,7 @@ export async function getTestProgress(testIds: number[]): Promise<Map<number, IT
       classId: true,
       month: true,
       year: true,
+      testDate: true,
       testSubjects: {
         where: { deletedAt: null },
         select: {

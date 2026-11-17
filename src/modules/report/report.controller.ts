@@ -1,20 +1,31 @@
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../../common/base/baseController.js';
-import { ReportMode, ReportService } from './index.js';
+import { IReportQuery, ReportService } from './index.js';
 
 class ReportController extends BaseController {
   getStudentReport = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { studentExternalId } = req.params;
-      const { mode, fromMonth, fromYear, toMonth, toYear } = req.query as unknown as { mode: ReportMode } & Record<
-        'fromMonth' | 'fromYear' | 'toMonth' | 'toYear',
-        string
-      >;
+      // Query values arrive as the strings Express parsed, not the validator's output
+      const q = req.query as Record<string, string | undefined>;
 
-      const result = await ReportService.getStudentReport(studentExternalId, mode, {
-        from: { month: Number(fromMonth), year: Number(fromYear) },
-        to: { month: Number(toMonth), year: Number(toYear) },
-      });
+      const query: IReportQuery =
+        q.mode === 'SESSION'
+          ? {
+              mode: 'SESSION',
+              fromTestExternalId: q.fromTestExternalId!,
+              toTestExternalId: q.toTestExternalId!,
+              earlierAsRow: q.earlierAsRow === 'true',
+            }
+          : {
+              mode: 'MONTHLY',
+              period: {
+                from: { month: Number(q.fromMonth), year: Number(q.fromYear) },
+                to: { month: Number(q.toMonth), year: Number(q.toYear) },
+              },
+            };
+
+      const result = await ReportService.getStudentReport(studentExternalId, query);
 
       return this.sendSuccessResponse(res, result);
     } catch (error) {

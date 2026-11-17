@@ -104,8 +104,10 @@ class StudentScoreService {
         test: {
           externalId: testData.externalId,
           name: testData.name,
+          testType: testData.testType,
           month: testData.month,
           year: testData.year,
+          testDate: testData.testDate ? testData.testDate.toISOString().slice(0, 10) : null,
         },
         subjects: testSubjects.map((ts) => ({
           externalId: ts.subjectClass.subject.externalId,

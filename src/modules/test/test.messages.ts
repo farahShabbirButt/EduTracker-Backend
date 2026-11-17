@@ -73,3 +73,13 @@ export const TEST_SUBJECTS_FETCHED_SUCCESSFULLY = Object.freeze({
   message: 'Test subjects fetched successfully',
   code: StatusCodes.OK,
 });
+
+export const TEST_TYPE_LOCKED = Object.freeze({
+  message: "Can't change a test between monthly and session once it has marks entered",
+  code: StatusCodes.CONFLICT,
+});
+
+export const SESSION_DATE_REQUIRED = Object.freeze({
+  message: 'A session test needs its date',
+  code: StatusCodes.BAD_REQUEST,
+});
