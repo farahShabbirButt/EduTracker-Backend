@@ -31,11 +31,11 @@ export interface IUpdateTest {
   updatedBy?: string;
 }
 
-// Query values reach the service as the strings Express parsed, not the validator's numbers
+// The validator coerces month and year to numbers; the service still runs them through Number()
 export interface IGetAllTestsQuery {
   classExternalId?: string;
-  month?: string;
-  year?: string;
+  month?: number;
+  year?: number;
 }
 
 export interface IImportTests {

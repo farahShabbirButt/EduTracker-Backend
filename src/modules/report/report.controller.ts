@@ -6,7 +6,7 @@ class ReportController extends BaseController {
   getStudentReport = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { studentExternalId } = req.params;
-      // Query values arrive as the strings Express parsed, not the validator's output
+      // The validator's output (numbers already coerced); Number() keeps this safe either way
       const q = req.query as Record<string, string | undefined>;
 
       const query: IReportQuery =

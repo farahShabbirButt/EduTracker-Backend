@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { importBody, importCell } from '../../lib/import.js';
 
+// When they joined the class, YYYY-MM-DD; tests before it aren't owed. Not in the future
+// (a day of slack: the school's today can be ahead of the server's).
+const joinedOn = z.iso
+  .date('Joined class on must be a date (YYYY-MM-DD)')
+  .refine((day) => day <= new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10), {
+    message: "Joined class on can't be in the future",
+  })
+  .optional();
+
 export const createStudentValidation = z.object({
   body: z.object({
     firstName: z
@@ -39,6 +48,7 @@ export const createStudentValidation = z.object({
     classId: z.uuid({
       error: (iss) => (iss.input === undefined ? 'Class Id is required.' : 'Class Id must be a valid UUID.'),
     }),
+    joinedOn,
     electiveSubjectIds: z
       .array(z.uuid('Each Subject Id must be a valid UUID'), 'Subject Ids list is required')
       .refine((ids) => new Set(ids).size === ids.length, { message: 'Duplicate Subject Ids are not allowed' })
@@ -60,6 +70,7 @@ export const updateStudentValidation = z.object({
     electiveSubjectIds: z.array(z.string().uuid()).optional(),
 
     classId: z.string().uuid().optional(),
+    joinedOn,
   }),
 });
 export const deleteStudentValidation = z.object({
