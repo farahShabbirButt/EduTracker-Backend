@@ -3,6 +3,14 @@ import { BaseController } from '../../common/base/baseController.js';
 import { IGetAllTestsQuery, TestService } from './index.js';
 
 class TestController extends BaseController {
+  import = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await TestService.importTests({ ...req.body, createdBy: req.user!.externalId });
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return next(error);
+    }
+  };
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await TestService.createTest({

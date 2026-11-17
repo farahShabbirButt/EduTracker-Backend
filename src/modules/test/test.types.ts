@@ -37,3 +37,20 @@ export interface IGetAllTestsQuery {
   month?: string;
   year?: string;
 }
+
+export interface IImportTests {
+  dryRun: boolean;
+  classId?: string;
+  rows: {
+    row: number;
+    className?: string;
+    name?: string;
+    testType?: string;
+    month?: string;
+    year?: string;
+    testDate?: string;
+    subject?: string;
+    maxMarks?: string;
+  }[];
+  createdBy?: string;
+}
