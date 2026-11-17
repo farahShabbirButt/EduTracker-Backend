@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { importBody, importCell } from '../../lib/import.js';
 
 export const createStudentValidation = z.object({
   body: z.object({
@@ -66,3 +67,23 @@ export const deleteStudentValidation = z.object({
     studentExternalId: z.uuid('Invalid student id'),
   }),
 });
+
+export const importStudentsValidation = importBody(
+  {
+    className: importCell,
+    rollNumber: importCell,
+    firstName: importCell,
+    lastName: importCell,
+    fatherName: importCell,
+    contactNo: importCell,
+    email: importCell,
+    electives: importCell,
+    joinedOn: importCell,
+  },
+  {
+    // One class for every row; without it each row names its class
+    classId: z.uuid('Class Id must be a valid UUID').optional(),
+    // Used for rows without their own joining date
+    joinedOn: z.iso.date('Joined class on must be a date (YYYY-MM-DD)'),
+  },
+);

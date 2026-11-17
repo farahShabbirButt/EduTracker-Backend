@@ -39,3 +39,18 @@ export const STUDENT_DELETED_SUCCESSFULLY = Object.freeze({
   message: 'Student deleted successfully',
   code: StatusCodes.OK,
 });
+
+export const STUDENT_IMPORT_CHECKED = Object.freeze({
+  message: 'File checked. Nothing is saved yet',
+  code: StatusCodes.OK,
+});
+
+export const STUDENT_IMPORT_DONE = Object.freeze({
+  message: 'Students imported',
+  code: StatusCodes.CREATED,
+});
+
+export const STUDENT_IMPORT_HAS_PROBLEMS = Object.freeze({
+  message: 'Some rows have problems, so nothing was imported. Fix the file and try again',
+  code: StatusCodes.BAD_REQUEST,
+});

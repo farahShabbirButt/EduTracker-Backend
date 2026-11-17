@@ -30,9 +30,13 @@ export interface IImportResult<T = unknown> {
 // instead of failing the whole request. The cap only stops absurd input.
 export const importCell = z.string().max(500, 'A cell in the file is too long').optional();
 
-export const importBody = <T extends z.ZodRawShape>(row: T) =>
+export const importBody = <T extends z.ZodRawShape, E extends z.ZodRawShape = Record<never, never>>(
+  row: T,
+  extra?: E,
+) =>
   z.object({
     body: z.object({
+      ...(extra as E),
       dryRun: z.boolean('Say whether this is a preview'),
       rows: z
         .array(z.object({ row: z.number().int().positive(), ...row }))
@@ -59,3 +63,48 @@ export const refuseProblems = (rows: IImportRowResult[], error: IError) => {
 };
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+// A date from the file: YYYY-MM-DD (what Excel dates become), or day first as typed in
+// Pakistan (D/M/YYYY or D-M-YYYY). Returns YYYY-MM-DD, or null if it isn't a real date.
+export const parseDay = (value: string | undefined): string | null => {
+  const text = cleanText(value);
+  let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
+  let [y, m, d] = match ? [match[1], match[2], match[3]] : [];
+  if (!match) {
+    match = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(text);
+    if (!match) return null;
+    [d, m, y] = [match[1], match[2], match[3]];
+  }
+  const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+  if (date.getUTCFullYear() !== Number(y) || date.getUTCMonth() !== Number(m) - 1 || date.getUTCDate() !== Number(d)) {
+    return null;
+  }
+  return date.toISOString().slice(0, 10);
+};
+
+// The server's midnight on that day, which is how lib/marksDue reads Student.classSince
+export const localDay = (day: string) => {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+// 2026-04-01 → 1 April 2026
+export const dayInWords = (day: string) => {
+  const [y, m, d] = day.split('-').map(Number);
+  return `${d} ${MONTHS[m - 1]} ${y}`;
+};

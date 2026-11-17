@@ -5,6 +5,7 @@ import { deleteStudentValidation } from './student.validation.js';
 
 const router = Router();
 
+router.post('/import', ZodValidator(StudentValidation.importStudentsValidation), StudentController.import);
 router.post('/', ZodValidator(StudentValidation.createStudentValidation), StudentController.create);
 router.put('/:studentExternalId', ZodValidator(StudentValidation.updateStudentValidation), StudentController.update);
 router.get('/', StudentController.getAllStudents);

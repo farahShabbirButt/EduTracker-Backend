@@ -15,6 +15,14 @@ class StudentController extends BaseController {
       return next(error);
     }
   };
+  import = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await StudentService.importStudents({ ...req.body, createdBy: req.user!.externalId });
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return next(error);
+    }
+  };
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { studentExternalId } = req.params;
