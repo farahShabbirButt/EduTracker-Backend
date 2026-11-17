@@ -1,5 +1,6 @@
 import { TestType } from '@prisma/client';
 import { z } from 'zod';
+import { importBody, importCell } from '../../lib/import.js';
 
 const noRepeatedSubject = (subjects: { subjectExternalId: string }[]) =>
   new Set(subjects.map((s) => s.subjectExternalId)).size === subjects.length;
@@ -94,3 +95,20 @@ export const getAllTestValidation = z.object({
     year: z.coerce.number().min(2000).max(2100).optional(),
   }),
 });
+
+export const importTestsValidation = importBody(
+  {
+    className: importCell,
+    name: importCell,
+    testType: importCell,
+    month: importCell,
+    year: importCell,
+    testDate: importCell,
+    subject: importCell,
+    maxMarks: importCell,
+  },
+  {
+    // One class for every row; without it each row names its class
+    classId: z.uuid('Class Id must be a valid UUID').optional(),
+  },
+);

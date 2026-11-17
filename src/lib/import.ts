@@ -24,6 +24,9 @@ export interface IImportResult<T = unknown> {
   rows: IImportRowResult[];
   // Only after a save: what was created, in the list's shape
   created?: T[];
+  // How many things the new rows make, when that isn't one per row (e.g. a test spans
+  // one row per subject)
+  toCreate?: number;
 }
 
 // Cells are sent as text and checked per row, so a bad cell becomes a message on its row
@@ -108,3 +111,21 @@ export const dayInWords = (day: string) => {
   const [y, m, d] = day.split('-').map(Number);
   return `${d} ${MONTHS[m - 1]} ${y}`;
 };
+
+// A month from the file: April, Apr, 4, "April 2026", or an Excel date. The year only if given.
+export const parseMonth = (value: string | undefined): { month: number; year?: number } | null => {
+  const text = cleanText(value).toLowerCase();
+  if (!text) return null;
+  const day = parseDay(text);
+  if (day) return { month: Number(day.slice(5, 7)), year: Number(day.slice(0, 4)) };
+  const match = /^([a-z]+|\d{1,2})[\s,/-]*(\d{4})?$/.exec(text);
+  if (!match) return null;
+  const [, part, year] = match;
+  const month = /^\d+$/.test(part)
+    ? Number(part)
+    : MONTHS.findIndex((m) => part.length >= 3 && m.toLowerCase().startsWith(part)) + 1;
+  if (month < 1 || month > 12) return null;
+  return { month, ...(year && { year: Number(year) }) };
+};
+
+export const monthInWords = (month: number, year: number) => `${MONTHS[month - 1]} ${year}`;

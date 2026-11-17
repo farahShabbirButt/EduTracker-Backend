@@ -83,3 +83,18 @@ export const SESSION_DATE_REQUIRED = Object.freeze({
   message: 'A session test needs its date',
   code: StatusCodes.BAD_REQUEST,
 });
+
+export const TEST_IMPORT_CHECKED = Object.freeze({
+  message: 'File checked. Nothing is saved yet',
+  code: StatusCodes.OK,
+});
+
+export const TEST_IMPORT_DONE = Object.freeze({
+  message: 'Tests imported',
+  code: StatusCodes.CREATED,
+});
+
+export const TEST_IMPORT_HAS_PROBLEMS = Object.freeze({
+  message: 'Some rows have problems, so nothing was imported. Fix the file and try again',
+  code: StatusCodes.BAD_REQUEST,
+});

@@ -4,6 +4,7 @@ import { TestController, TestValidation } from './index.js';
 
 const router = Router();
 
+router.post('/import', ZodValidator(TestValidation.importTestsValidation), TestController.import);
 router.post('/', ZodValidator(TestValidation.createTestValidation), TestController.create);
 router.get('/', ZodValidator(TestValidation.getAllTestValidation), TestController.getAll);
 router.get('/:externalId', TestController.getById);

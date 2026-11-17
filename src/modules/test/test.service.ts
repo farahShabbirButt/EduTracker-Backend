@@ -1,7 +1,20 @@
 import { getTestProgress } from '../../lib/marksDue.js';
 import prisma, { LIVE_SCORES, rethrowUniqueViolation } from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
-import { ICreateTest, IGetAllTestsQuery, ITestSubjectInput, IUpdateTest, TestMessages } from './index.js';
+import { ICreateTest, IGetAllTestsQuery, IImportTests, ITestSubjectInput, IUpdateTest, TestMessages } from './index.js';
+import {
+  cleanText,
+  countRows,
+  dayInWords,
+  IImportResult,
+  IImportRowResult,
+  monthInWords,
+  nameKey,
+  parseDay,
+  parseMonth,
+  plural,
+  refuseProblems,
+} from '../../lib/import.js';
 import { Prisma, TestType } from '@prisma/client';
 
 // What every test response carries. The Tests table and the edit form both read `class`,
@@ -162,6 +175,265 @@ class TestService {
     });
 
     return this.withProgress(result);
+  }
+
+  // One row per test and subject; rows with the same class, name, type and month (or date) are
+  // one test. A test already in the class is skipped whole. Max marks left blank take the
+  // subject's own. Same rules as the Tests form.
+  async importTests({ dryRun, classId, rows, createdBy }: IImportTests): Promise<IAPISuccessResponse> {
+    const classes = await prisma.class.findMany({
+      where: { isActive: true, deletedAt: null },
+      select: { id: true, externalId: true, name: true },
+    });
+    let fixedClass: (typeof classes)[number] | undefined;
+    if (classId) {
+      fixedClass = classes.find((c) => c.externalId === classId);
+      if (!fixedClass) throw ApiError.format('', TestMessages.CLASS_NOT_FOUND);
+    }
+    const classKeys = classes.map((c) => nameKey(c.name));
+    const classByKey = new Map(classes.map((c) => [nameKey(c.name), c]));
+    const classTwice = new Set(classKeys.filter((k, i) => classKeys.indexOf(k) !== i));
+
+    const [links, existingTests] = await Promise.all([
+      prisma.subjectClass.findMany({
+        where: { deletedAt: null, subject: { isActive: true, deletedAt: null } },
+        select: { id: true, classId: true, subject: { select: { name: true, maxMarks: true } } },
+      }),
+      prisma.test.findMany({
+        where: { deletedAt: null },
+        select: { classId: true, name: true, month: true, year: true, testType: true },
+      }),
+    ]);
+    // The uniqueness rule: class, name, month, year and type
+    const testKey = (cls: number, name: string, type: TestType, month: number, year: number) =>
+      `${cls}|${nameKey(name)}|${type}|${year}-${month}`;
+    const lastYear = new Date().getFullYear() + 1;
+    const existing = new Set(existingTests.map((t) => testKey(t.classId, t.name, t.testType, t.month, t.year)));
+
+    type Group = {
+      classId: number;
+      name: string;
+      testType: TestType;
+      month: number;
+      year: number;
+      testDate: string | null;
+      firstRow: number;
+      subjects: Map<number, { row: number; maxMarks: number }>;
+    };
+    const groups = new Map<string, Group>();
+    const skippedTests = new Set<string>();
+
+    const results: IImportRowResult[] = rows.map((input) => {
+      const problems: string[] = [];
+      const name = cleanText(input.name);
+      const subjectName = cleanText(input.subject);
+
+      let cls = fixedClass;
+      if (!cls) {
+        const className = cleanText(input.className);
+        if (!className) problems.push('The class is missing');
+        else if (classTwice.has(nameKey(className))) {
+          problems.push(`More than one class is called ${className} (different capitals). Rename one first`);
+        } else {
+          cls = classByKey.get(nameKey(className));
+          if (!cls) problems.push(`There is no class called ${className}`);
+        }
+      }
+
+      if (!name) problems.push('The test name is missing');
+      else if (name.length > 50) problems.push('The test name must be at most 50 characters');
+
+      const typeText = nameKey(input.testType);
+      const testType = ['monthly', 'month', 'm'].includes(typeText)
+        ? TestType.MONTHLY
+        : ['session', 'test session', 'session test', 's'].includes(typeText)
+          ? TestType.SESSION
+          : null;
+      if (!typeText) problems.push('Type is missing. Use Monthly or Session');
+      else if (!testType) problems.push('Type must be Monthly or Session');
+
+      // Where the test sits in time, as the Tests form places it
+      let month: number | undefined;
+      let year: number | undefined;
+      let testDate: string | null = null;
+      if (testType === TestType.SESSION) {
+        const day = cleanText(input.testDate) ? parseDay(input.testDate) : null;
+        if (!cleanText(input.testDate)) problems.push('A session test needs its date');
+        else if (!day) problems.push('The date must be a date, e.g. 2026-09-15 or 15/9/2026');
+        else {
+          testDate = day;
+          [year, month] = day.split('-').map(Number);
+          if (year < 2000 || year > lastYear) problems.push(`Pick a date from 2000 to ${lastYear}`);
+          // Month or Year cells that disagree with the date are probably a typo somewhere
+          const saidMonth = cleanText(input.month) ? parseMonth(input.month) : null;
+          const saidYear = cleanText(input.year);
+          if ((saidMonth && saidMonth.month !== month) || (saidYear && saidYear !== String(year))) {
+            problems.push(`The Month or Year cell doesn't match the date ${dayInWords(day)}`);
+          }
+        }
+      } else if (testType === TestType.MONTHLY) {
+        const fromMonth = cleanText(input.month) ? parseMonth(input.month) : null;
+        const fromDate = !cleanText(input.month) && cleanText(input.testDate) ? parseMonth(input.testDate) : null;
+        const given = fromMonth ?? fromDate;
+        const yearText = cleanText(input.year);
+        if (cleanText(input.month) && !fromMonth) problems.push('Month must be a month, e.g. April, Apr or 4');
+        else if (!given) problems.push('A monthly test needs its month');
+        else month = given.month;
+        if (/^\d{4}$/.test(yearText)) year = Number(yearText);
+        else if (yearText) problems.push('Year must be a year, e.g. 2026');
+        else if (given?.year) year = given.year;
+        else if (given) problems.push('A monthly test needs its year');
+        if (year !== undefined && given?.year && given.year !== year) {
+          problems.push(`The Month cell says ${given.year} but the Year cell says ${year}`);
+        }
+        // As the Tests form: Reports can't pick a later year, so its card could never print
+        if (year !== undefined && year < 2000) problems.push('Enter a year from 2000');
+        else if (year !== undefined && year > lastYear) problems.push("Year can't be past next year");
+      } else {
+        // The type is unknown, but cells that are filled in can still be checked now
+        if (cleanText(input.month) && !parseMonth(input.month))
+          problems.push('Month must be a month, e.g. April, Apr or 4');
+        if (cleanText(input.year) && !/^\d{4}$/.test(cleanText(input.year)))
+          problems.push('Year must be a year, e.g. 2026');
+        if (cleanText(input.testDate) && !parseDay(input.testDate)) {
+          problems.push('The date must be a date, e.g. 2026-09-15 or 15/9/2026');
+        }
+      }
+
+      // A test already in the class is skipped whole, so its rows' subjects and marks don't
+      // matter (a subject removed from the class since mustn't block the rest of the file)
+      if (
+        !problems.length &&
+        cls &&
+        testType &&
+        month &&
+        year &&
+        existing.has(testKey(cls.id, name, testType, month, year))
+      ) {
+        const when = testDate ? dayInWords(testDate) : monthInWords(month, year);
+        skippedTests.add(testKey(cls.id, name, testType, month, year));
+        return {
+          row: input.row,
+          label: `${name}, ${when}, ${cls.name}` + (subjectName ? `: ${subjectName}` : ''),
+          status: 'exists',
+          messages: [`${name} for ${when} is already in ${cls.name}, so it is skipped`],
+        };
+      }
+
+      let subjectClassId: number | undefined;
+      let defaultMarks: number | undefined;
+      if (!subjectName) problems.push('The subject is missing');
+      else if (cls) {
+        const matches = links.filter((l) => l.classId === cls.id && nameKey(l.subject.name) === nameKey(subjectName));
+        if (matches.length > 1) {
+          problems.push(`More than one subject in ${cls.name} is called ${subjectName} (different capitals)`);
+        } else if (!matches.length) problems.push(`${subjectName} isn't offered in ${cls.name}`);
+        else {
+          subjectClassId = matches[0].id;
+          defaultMarks = matches[0].subject.maxMarks;
+        }
+      }
+
+      const marksText = cleanText(input.maxMarks);
+      let maxMarks = defaultMarks;
+      if (marksText) {
+        maxMarks = /^\d+$/.test(marksText) ? Number(marksText) : undefined;
+        if (!maxMarks || maxMarks > 10000) problems.push('Max marks must be a whole number from 1 to 10000');
+      }
+
+      const when = testDate ? dayInWords(testDate) : month && year ? monthInWords(month, year) : '';
+      const label =
+        [name || '(no name)', when, cls?.name].filter(Boolean).join(', ') + (subjectName ? `: ${subjectName}` : '');
+      const done = (status: IImportRowResult['status'], messages: string[]): IImportRowResult => ({
+        row: input.row,
+        label,
+        status,
+        messages,
+      });
+
+      if (problems.length || !cls || !testType || !month || !year || !subjectClassId || !maxMarks) {
+        return done('problem', problems);
+      }
+
+      const key = testKey(cls.id, name, testType, month, year);
+
+      const group = groups.get(key);
+      if (group && group.testDate !== testDate) {
+        return done('problem', [
+          `${name} is also on row ${group.firstRow} with the date ${dayInWords(group.testDate!)}. A test name can be used once a month`,
+        ]);
+      }
+      if (group?.subjects.has(subjectClassId)) {
+        return done('problem', [
+          `${subjectName} is already on row ${group.subjects.get(subjectClassId)!.row} for this test`,
+        ]);
+      }
+      const target = group ?? {
+        classId: cls.id,
+        name,
+        testType,
+        month,
+        year,
+        testDate,
+        firstRow: input.row,
+        subjects: new Map(),
+      };
+      target.subjects.set(subjectClassId, { row: input.row, maxMarks });
+      groups.set(key, target);
+      return done('new', [`Out of ${maxMarks}${marksText ? '' : " (the subject's max marks)"}`]);
+    });
+
+    const answer: IImportResult = { dryRun, counts: countRows(results), rows: results, toCreate: groups.size };
+    if (dryRun) {
+      return { keyName: 'testImport', testImport: answer, ...TestMessages.TEST_IMPORT_CHECKED };
+    }
+
+    refuseProblems(results, TestMessages.TEST_IMPORT_HAS_PROBLEMS);
+
+    const created = await prisma
+      .$transaction(
+        async (tx) => {
+          const ids: number[] = [];
+          for (const group of groups.values()) {
+            const subjects = [...group.subjects.entries()];
+            const test = await tx.test.create({
+              data: {
+                name: group.name,
+                testType: group.testType,
+                month: group.month,
+                year: group.year,
+                testDate: group.testDate ? new Date(group.testDate) : null,
+                totalMarks: subjects.reduce((sum, [, s]) => sum + s.maxMarks, 0),
+                classId: group.classId,
+                createdBy: createdBy ?? null,
+              },
+              select: { id: true },
+            });
+            await tx.testSubject.createMany({
+              data: subjects.map(([subjectClassId, s]) => ({
+                testId: test.id,
+                subjectClassId,
+                maxMarks: s.maxMarks,
+                createdBy: createdBy ?? null,
+              })),
+            });
+            ids.push(test.id);
+          }
+          return tx.test.findMany({ where: { id: { in: ids } }, select: TEST_PUBLIC_FIELDS, orderBy: { id: 'asc' } });
+        },
+        { timeout: 60_000 },
+      )
+      .catch(rethrowUniqueViolation(TestMessages.TEST_ALREADY_EXISTS));
+
+    answer.created = created.map(toPublicTest);
+    const skipped = skippedTests.size ? `, ${skippedTests.size} already there` : '';
+    return {
+      keyName: 'testImport',
+      testImport: answer,
+      code: TestMessages.TEST_IMPORT_DONE.code,
+      message: `${plural(created.length, 'test', 'tests')} imported${skipped}`,
+      success: true,
+    };
   }
 
   async updateTest(externalId: string, payload: IUpdateTest): Promise<IAPISuccessResponse> {
