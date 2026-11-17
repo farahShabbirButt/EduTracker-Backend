@@ -3,6 +3,7 @@ import { ZodValidator } from '../../middleware/ZodValidator.js';
 import { SubjectController, SubjectValidation } from './index.js';
 
 const router = Router();
+router.post('/import', ZodValidator(SubjectValidation.importSubjectsValidation), SubjectController.import);
 router.post('/', ZodValidator(SubjectValidation.createSubjectValidation), SubjectController.create);
 router.get('/', ZodValidator(SubjectValidation.getAllSubjectVaidation), SubjectController.getAll);
 router.get('/:externalId', SubjectController.getById);

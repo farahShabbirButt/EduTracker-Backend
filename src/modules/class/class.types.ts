@@ -20,3 +20,9 @@ export function createClassMapper(payload: ICreateClass): Prisma.ClassCreateInpu
     createdBy: payload.createdBy ?? null,
   };
 }
+
+export interface IImportClasses {
+  dryRun: boolean;
+  rows: { row: number; name?: string }[];
+  createdBy?: string;
+}

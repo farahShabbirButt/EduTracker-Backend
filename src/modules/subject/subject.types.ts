@@ -40,3 +40,9 @@ export function createSubjectMapper(payload: ICreateSubject): Prisma.SubjectCrea
 export interface IGetAllSubjectsQuery {
   classExternalId?: string;
 }
+
+export interface IImportSubjects {
+  dryRun: boolean;
+  rows: { row: number; name?: string; subjectType?: string; maxMarks?: string; classes?: string }[];
+  createdBy?: string;
+}

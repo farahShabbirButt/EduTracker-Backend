@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma.js';
 import { ApiError } from '../../common/responses/index.js';
 import { SubjectClassMessages, ICreateSubjectClass } from './index.js';
@@ -6,6 +7,33 @@ import { ClassMessages } from '../../modules/class/index.js';
 import { StudentSubjectService } from '../../modules/studentSubject/index.js';
 
 class SubjectClassService {
+  // Offers subjects in a class. A subject offered here before gets its old link back, with its
+  // tests and enrolments. Doesn't enrol anyone: the caller runs enrolClassInCompulsorySubjects.
+  async linkSubjects(tx: Prisma.TransactionClient, classId: number, subjectIds: number[], createdBy?: string) {
+    if (subjectIds.length === 0) return;
+
+    const removedLinks = await tx.subjectClass.findMany({
+      where: { classId, subjectId: { in: subjectIds }, deletedAt: { not: null } },
+      orderBy: { id: 'asc' },
+    });
+    const linkToRestore = new Map(removedLinks.map((link) => [link.subjectId, link.id]));
+
+    if (linkToRestore.size > 0) {
+      await tx.subjectClass.updateMany({
+        where: { id: { in: [...linkToRestore.values()] } },
+        data: { deletedAt: null, updatedBy: createdBy ?? null },
+      });
+    }
+
+    const toCreate = subjectIds.filter((subjectId) => !linkToRestore.has(subjectId));
+    if (toCreate.length > 0) {
+      await tx.subjectClass.createMany({
+        skipDuplicates: true,
+        data: toCreate.map((subjectId) => ({ classId, subjectId, createdBy: createdBy ?? null })),
+      });
+    }
+  }
+
   async assignSubjectsToClass(payload: ICreateSubjectClass): Promise<IAPISuccessResponse> {
     return await prisma.$transaction(async (tx) => {
       // Resolve Class
@@ -66,32 +94,7 @@ class SubjectClassService {
         });
       }
 
-      // A subject assigned here before gets its old link back, with its tests and enrolments
-      const removedLinks = await tx.subjectClass.findMany({
-        where: { classId: classEntity.id, subjectId: { in: toAdd }, deletedAt: { not: null } },
-        orderBy: { id: 'asc' },
-      });
-      const linkToRestore = new Map(removedLinks.map((link) => [link.subjectId, link.id]));
-
-      if (linkToRestore.size > 0) {
-        await tx.subjectClass.updateMany({
-          where: { id: { in: [...linkToRestore.values()] } },
-          data: { deletedAt: null, updatedBy: payload.createdBy ?? null },
-        });
-      }
-
-      // Create new mappings
-      const toCreate = toAdd.filter((subjectId) => !linkToRestore.has(subjectId));
-      if (toCreate.length > 0) {
-        await tx.subjectClass.createMany({
-          skipDuplicates: true,
-          data: toCreate.map((subjectId) => ({
-            classId: classEntity.id,
-            subjectId,
-            createdBy: payload.createdBy ?? null,
-          })),
-        });
-      }
+      await this.linkSubjects(tx, classEntity.id, toAdd, payload.createdBy);
 
       await StudentSubjectService.enrolClassInCompulsorySubjects(classEntity.id, tx);
 

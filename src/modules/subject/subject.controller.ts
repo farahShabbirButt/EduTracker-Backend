@@ -15,6 +15,14 @@ class SubjectController extends BaseController {
       return next(error);
     }
   };
+  import = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await SubjectService.importSubjects({ ...req.body, createdBy: req.user!.externalId });
+      return this.sendSuccessResponse(res, result);
+    } catch (error) {
+      return next(error);
+    }
+  };
   //TODO: handle pagination later if needed
   getAll = async (req: Request, res: Response, next: NextFunction) => {
     try {

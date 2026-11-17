@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { importBody, importCell } from '../../lib/import.js';
 
 export const createClassValidation = z.object({
   body: z.object({
@@ -24,3 +25,5 @@ export const updateClassValidation = z.object({
       .optional(),
   }),
 });
+
+export const importClassesValidation = importBody({ name: importCell });

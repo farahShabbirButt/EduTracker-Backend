@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SubjectType } from '@prisma/client';
+import { importBody, importCell } from '../../lib/import.js';
 
 export const MAX_MARKS_LIMIT = 10000;
 
@@ -50,4 +51,11 @@ export const getAllSubjectVaidation = z.object({
   query: z.object({
     classExternalId: z.uuid('Class Id is required.Invalid UUID').optional(),
   }),
+});
+
+export const importSubjectsValidation = importBody({
+  name: importCell,
+  subjectType: importCell,
+  maxMarks: importCell,
+  classes: importCell,
 });

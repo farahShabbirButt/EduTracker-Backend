@@ -49,3 +49,18 @@ export const SUBJECT_ON_TESTS = {
   message: "This subject is on tests, so it can't become compulsory. Tick it for each student instead",
   code: StatusCodes.CONFLICT,
 };
+
+export const SUBJECT_IMPORT_CHECKED = Object.freeze({
+  message: 'File checked. Nothing is saved yet',
+  code: StatusCodes.OK,
+});
+
+export const SUBJECT_IMPORT_DONE = Object.freeze({
+  message: 'Subjects imported',
+  code: StatusCodes.CREATED,
+});
+
+export const SUBJECT_IMPORT_HAS_PROBLEMS = Object.freeze({
+  message: 'Some rows have problems, so nothing was imported. Fix the file and try again',
+  code: StatusCodes.BAD_REQUEST,
+});

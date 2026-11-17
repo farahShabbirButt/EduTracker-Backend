@@ -44,3 +44,18 @@ export const CLASS_NOT_FOUND = {
   message: 'Class not found or inactive',
   code: StatusCodes.NOT_FOUND,
 };
+
+export const CLASS_IMPORT_CHECKED = {
+  message: 'File checked. Nothing is saved yet',
+  code: StatusCodes.OK,
+};
+
+export const CLASS_IMPORT_DONE = {
+  message: 'Classes imported',
+  code: StatusCodes.CREATED,
+};
+
+export const CLASS_IMPORT_HAS_PROBLEMS = {
+  message: 'Some rows have problems, so nothing was imported. Fix the file and try again',
+  code: StatusCodes.BAD_REQUEST,
+};
