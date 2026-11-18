@@ -257,6 +257,8 @@ model User {
   passwordHash String
   name         String?
   lastLoginAt  DateTime?
+  // Up by one on every password change or reset; login tokens issued before it stop working
+  tokenVersion Int       @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

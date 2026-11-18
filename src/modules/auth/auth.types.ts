@@ -29,6 +29,8 @@ export interface IJwtPayload {
   userId: number;
   externalId: string;
   email: string;
+  // User.tokenVersion when the token was issued. Missing in tokens from before it existed (0).
+  tokenVersion?: number;
 }
 
 // What the controllers / `req.user` see (no passwordHash, no internal flags).

@@ -16,6 +16,8 @@ export const requestLogger = pinoHttp({
     return res.statusCode >= 400 ? 'warn' : 'info';
   },
   autoLogging: { ignore: (req) => req.url === '/health' },
+  // The visitor's address as Express sees it after TRUST_PROXY, which the login limit counts by
+  customProps: (req) => ({ ip: (req as unknown as { ip?: string }).ip }),
   serializers: {
     req: (req) => ({ id: req.id, method: req.method, url: req.url }),
     res: (res) => ({ statusCode: res.statusCode }),

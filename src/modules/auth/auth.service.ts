@@ -33,6 +33,19 @@ const toAuthUser = (user: UserRow): IAuthUser => ({
   lastLoginAt: user.lastLoginAt,
 });
 
+// The login token, carrying the user's tokenVersion so a password change can end it
+const signToken = (user: { id: number; externalId: string; email: string; tokenVersion: number }) => {
+  const jwtPayload: IJwtPayload = {
+    userId: user.id,
+    externalId: user.externalId,
+    email: user.email,
+    tokenVersion: user.tokenVersion,
+  };
+  return jwt.sign(jwtPayload, env.jwtSecret, {
+    expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'],
+  });
+};
+
 class AuthService {
   async login(payload: ILoginPayload): Promise<IAPISuccessResponse> {
     const user = await prisma.user.findUnique({ where: { email: payload.email } });
@@ -48,15 +61,7 @@ class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    const jwtPayload: IJwtPayload = {
-      userId: user.id,
-      externalId: user.externalId,
-      email: user.email,
-    };
-
-    const token = jwt.sign(jwtPayload, env.jwtSecret, {
-      expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'],
-    });
+    const token = signToken(updated);
 
     return {
       keyName: 'auth',
@@ -144,9 +149,10 @@ class AuthService {
 
     const passwordHash = await bcrypt.hash(payload.newPassword, 10);
 
-    // A reset link still open would otherwise undo this change
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+    // A reset link still open would otherwise undo this change. The new tokenVersion signs
+    // out every other device; this one gets a fresh token (set as the cookie by the controller).
+    const [updated] = await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { passwordHash, tokenVersion: { increment: 1 } } }),
       prisma.passwordResetToken.updateMany({
         where: { userId: user.id, usedAt: null },
         data: { usedAt: new Date() },
@@ -155,7 +161,7 @@ class AuthService {
 
     return {
       keyName: 'passwordChange',
-      passwordChange: { changed: true },
+      passwordChange: { changed: true, token: signToken(updated) },
       code: AuthMessages.PASSWORD_CHANGED.code,
       message: AuthMessages.PASSWORD_CHANGED.message,
       success: true,
@@ -219,7 +225,8 @@ class AuthService {
     const passwordHash = await bcrypt.hash(payload.newPassword, 10);
 
     await prisma.$transaction([
-      prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
+      // Signs out every device: whoever holds a session may be who the reset defends against
+      prisma.user.update({ where: { id: record.userId }, data: { passwordHash, tokenVersion: { increment: 1 } } }),
       prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
     ]);
 
