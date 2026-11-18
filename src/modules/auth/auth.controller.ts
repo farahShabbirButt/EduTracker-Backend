@@ -10,14 +10,14 @@ import type { IAuthUser } from './auth.types.js';
 // One constant for both so the cookie cannot outlive the token it carries.
 export const AUTH_COOKIE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-// sameSite 'none' + secure is required in production because the deployment is
-// cross-site (Vercel frontend, Railway backend). In development localhost:5173
-// and localhost:5000 are same-site, where 'lax' is correct and 'none' would be
-// rejected for lacking Secure over plain http.
+// The app and the API share one address in production (the backend serves the built
+// frontend), so the cookie is first-party and 'lax' works everywhere. 'lax' also means another
+// site can't send a request that carries it, except plain links. Secure in production (HTTPS);
+// development runs on plain http on localhost, where a Secure cookie wouldn't be stored.
 export const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: env.nodeEnv === 'production',
-  sameSite: (env.nodeEnv === 'production' ? 'none' : 'lax') as 'none' | 'lax',
+  sameSite: 'lax' as const,
   path: '/',
 };
 
@@ -72,7 +72,11 @@ class AuthController extends BaseController {
   changePassword = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await AuthService.changePassword(req.user!.externalId, req.body);
-      return this.sendSuccessResponse(res, result);
+      // Other devices are signed out; this one stays in with a new token. Like login, the
+      // token leaves only in Set-Cookie.
+      const { token, ...passwordChange } = result.passwordChange as { token: string; changed: boolean };
+      res.cookie(env.authCookieName, token, { ...COOKIE_OPTIONS, maxAge: AUTH_COOKIE_MAX_AGE_MS });
+      return this.sendSuccessResponse(res, { ...result, passwordChange });
     } catch (error) {
       return next(error);
     }

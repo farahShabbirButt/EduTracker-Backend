@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "build:local": "npx tsc -p tsconfig.json",
     "start:local": "concurrently \"npx tsc --watch\" \"nodemon dist/server.js\"",
@@ -11,7 +14,9 @@
     "lint": "npm run prettier-lint && npx eslint . --ext .ts",
     "prettier-fix": "npx prettier --write \"src/**/*.ts\"",
     "prettier-lint": "npx prettier --check \"src/**/*.ts\"",
-    "build:prod": "npx tsc -p ."
+    "build:prod": "npx tsc -p .",
+    "build:render": "npm ci --include=dev && npx prisma generate && npm run build:prod && bash scripts/build-web.sh",
+    "start:render": "npx prisma migrate deploy && node dist/server.js"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -30,9 +35,11 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.3",
+    "helmet": "^8.3.0",
     "http-status-codes": "^2.3.0",
     "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^8.0.10",
+    "nodemailer": "^10.3.1",
     "pino": "^10.1.0",
     "pino-http": "^11.0.0",
     "uuid": "^13.0.0",

@@ -28,3 +28,9 @@ Thumbs.db
 *.ntvs*
 *.njsproj
 *.sln
+
+# The frontend, cloned and built by scripts/build-web.sh
+web/
+
+# Database backups (scripts/backup-db.sh): private data, never commit
+backups/

@@ -1,0 +1,36 @@
+# Render Blueprint: Render reads this file to create and configure the live service.
+# Setup steps: DEPLOYMENT.md. Plan: eduTrackerDocs/Plans/2026-11-18-phase-7-free-hosting.md
+services:
+  - type: web
+    # The address becomes https://<name>.onrender.com (Render adds a random ending if the name
+    # is taken; then delete it and use the backup name farrukh-edutracker). Changing it
+    # after launch means a new service.
+    name: farrukh-academy-edutracker
+    runtime: node
+    plan: free
+    # Same region as the Neon database (AWS Singapore), the nearest to Pakistan
+    region: singapore
+    branch: main
+    # Builds the API and the frontend (scripts/build-web.sh); the server serves both
+    buildCommand: npm run build:render
+    # Brings the database tables up to date, then starts the server
+    startCommand: npm run start:render
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Asia/Karachi
+      - key: WEB_DIST
+        value: web/dist
+      # Render makes a long random value; changing it later logs everyone out
+      - key: JWT_SECRET
+        generateValue: true
+      # Asked for when the Blueprint is created; never stored in this repo
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false

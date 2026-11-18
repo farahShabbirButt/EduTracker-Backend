@@ -3,6 +3,7 @@ import { env } from './env.js';
 
 let transporter: Transporter | null = null;
 
+// SMTP, for development (e.g. Mailtrap). Production sends through Brevo's API instead.
 // Lazy singleton — transporter is built on first use so the server can boot
 // even when SMTP is not configured (e.g. local dev without email needs).
 function getTransporter(): Transporter {
@@ -11,7 +12,7 @@ function getTransporter(): Transporter {
   const { host, port, user, pass } = env.smtp;
   if (!host || !port || !user || !pass) {
     throw new Error(
-      'SMTP not configured — set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS in .env before sending email',
+      'Email not configured — set BREVO_API_KEY, or SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, in .env before sending email',
     );
   }
 
@@ -32,12 +33,35 @@ interface SendArgs {
   html: string;
 }
 
-async function send({ to, subject, html }: SendArgs): Promise<void> {
-  const from = env.smtp.from;
-  if (!from) {
-    throw new Error('SMTP_FROM must be set in .env to send email');
+// "EduTracker <admin@school.pk>" or just "admin@school.pk"
+const parseFrom = (from: string) => {
+  const match = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(from);
+  return match ? { name: match[1].replace(/^"|"$/g, '') || undefined, email: match[2] } : { email: from.trim() };
+};
+
+// Brevo's web API, over HTTPS. Used in production because Render's free plan blocks the SMTP
+// ports (25, 465 and 587).
+async function sendWithBrevo(apiKey: string, from: string, { to, subject, html }: SendArgs): Promise<void> {
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': apiKey, accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify({ sender: parseFrom(from), to: [{ email: to }], subject, htmlContent: html }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) {
+    // Brevo's error body says what's wrong (e.g. an unverified sender) and holds no secrets
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Brevo refused the email: ${response.status} ${detail.slice(0, 300)}`);
   }
-  await getTransporter().sendMail({ from, to, subject, html });
+}
+
+async function send(args: SendArgs): Promise<void> {
+  const from = env.emailFrom;
+  if (!from) {
+    throw new Error('EMAIL_FROM must be set in .env to send email');
+  }
+  if (env.brevoApiKey) return sendWithBrevo(env.brevoApiKey, from, args);
+  await getTransporter().sendMail({ from, ...args });
 }
 
 export const EmailService = {

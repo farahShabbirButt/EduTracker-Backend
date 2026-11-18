@@ -19,6 +19,8 @@ import { notFoundMiddleware } from './middleware/notFound.middleware.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { requestLogger } from './middleware/requestLogger.middleware.js';
+import { serveWeb } from './middleware/web.middleware.js';
+import { securityHeaders } from './middleware/securityHeaders.middleware.js';
 
 const app: Application = express();
 // APP_BASE = '/edu-tracker';
@@ -36,6 +38,13 @@ const REPORT = BASE + '/report';
 const INSTITUTE = BASE + '/institute';
 const DASHBOARD = BASE + '/dashboard';
 const AUTH = BASE + '/auth';
+
+app.set('trust proxy', env.trustProxy);
+app.use(securityHeaders);
+
+// The app's own files, when this server serves the frontend too (production). Before the
+// request logger, so a page load doesn't log a line for every script and image.
+if (env.webDist) app.use(serveWeb(env.webDist));
 
 app.use(requestLogger);
 
